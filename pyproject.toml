@@ -1,0 +1,67 @@
+[project]
+name = "jax_scaled_arithmetics"
+version = "0.1"
+description="JAX Scaled Arithmetics."
+readme = "README.md"
+authors = [
+  { name = "Graphcore Research", email = "contact@graphcore.ai" },
+]
+requires-python = ">=3.8"
+classifiers = [
+  "License :: Apache 2.0",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+  "chex == 0.1.6",
+  "jax >= 0.3.16",
+  "jaxlib >= 0.3.15",
+  "numpy >= 1.22.4"
+]
+
+[project.urls]
+Website = "https://github.com/graphcore-research/jax-scaled-arithmetics/#readme"
+"Source Code" = "https://github.com/graphcore-research/jax-scaled-arithmetics/"
+"Bug Tracker" = "https://github.com/graphcore-research/jax-scaled-arithmetics/issues"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = ["-ra", "--showlocals", "--strict-config", "-p no:hypothesispytest"]
+xfail_strict = true
+filterwarnings = [
+  "error",
+  "ignore:(ast.Str|Attribute s|ast.NameConstant|ast.Num) is deprecated:DeprecationWarning:_pytest",  # Python 3.12
+]
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 120
+target-version = ['py38', 'py39', 'py310']
+
+[tool.isort]
+line_length = 120
+known_first_party = "tessellate_ipu"
+
+[tool.mypy]
+python_version = "3.8"
+plugins = ["numpy.typing.mypy_plugin"]
+# Config heavily inspired by Pydantic!
+show_error_codes = true
+# strict_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_unused_configs = true
+check_untyped_defs = true
+disallow_any_generics = true
+no_implicit_optional = false
+# disallow_incomplete_defs = true
+# disallow_untyped_decorators = true
+# disallow_untyped_calls = true
+# # disallow_subclassing_any = true
+# # for strict mypy: (this is the tricky one :-))
+# disallow_untyped_defs = true
