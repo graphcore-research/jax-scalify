@@ -35,10 +35,15 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert isinstance(out, npb.ndarray)
         assert out.dtype == sarr.dtype
         npt.assert_array_equal(out, sarr.data * sarr.scale)
-        # Custom dtype.
+        # Custom float dtype.
         out = sarr.to_array(dtype=np.float32)
         assert isinstance(out, npb.ndarray)
         assert out.dtype == np.float32
+        npt.assert_array_equal(out, sarr.data * sarr.scale)
+        # Custom int dtype.
+        out = sarr.to_array(dtype=np.int8)
+        assert isinstance(out, npb.ndarray)
+        assert out.dtype == np.int8
         npt.assert_array_equal(out, sarr.data * sarr.scale)
 
     @parameterized.parameters(

@@ -1,6 +1,6 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import jax
 import numpy as np
@@ -35,7 +35,7 @@ class ScaledArray:
     """
 
     data: GenericArray
-    scale: Optional[GenericArray] = None
+    scale: GenericArray
 
     def __post_init__(self):
         assert isinstance(self.data, (jax.Array, np.ndarray))
@@ -71,8 +71,6 @@ class ScaledArray:
         """
         dtype = self.data.dtype if dtype is None else dtype
         data = self.data.astype(dtype)
-        if self.scale is None:
-            return data
         scale = self.scale.astype(dtype)
         values = data * scale
         return values
