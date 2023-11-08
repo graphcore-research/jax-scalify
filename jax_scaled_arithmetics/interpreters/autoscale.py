@@ -14,9 +14,9 @@ from ..lax import scaled_ops_registry
 def autoscale(fun):
     @wraps(fun)
     def wrapped(*args, **kwargs):
-        unscaled_args = safe_map(lambda x: x.to_array() if hasattr(x, "to_array") else x, args)
+        aval_args = safe_map(lambda x: x.aval, args)
         # get jaxpr of unscaled graph
-        closed_jaxpr = jax.make_jaxpr(fun)(*unscaled_args, **kwargs)
+        closed_jaxpr = jax.make_jaxpr(fun)(*aval_args, **kwargs)
         # convert to scaled graph
         out = autoscale_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *args)
         return out

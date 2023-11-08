@@ -78,3 +78,7 @@ class ScaledArray:
     def __array__(self, dtype: DTypeLike = None) -> NDArray[Any]:
         """Numpy array interface support."""
         return np.asarray(self.to_array(dtype))
+
+    @property
+    def aval(self):
+        return self.data * self.scale
