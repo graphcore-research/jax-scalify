@@ -1,12 +1,13 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 
 from functools import wraps
+from typing import Dict
 
 import jax
-import numpy as np
 from jax import core
 from jax._src.util import safe_map
 
+from ..core import ScaledArray
 from ..lax import scaled_ops_registry
 
 
@@ -24,7 +25,7 @@ def autoscale(fun):
 
 
 def autoscale_jaxpr(jaxpr, consts, *args):
-    env = {}
+    env: Dict[core.Var, ScaledArray] = {}
 
     def read(var):
         if type(var) is core.Literal:
@@ -43,7 +44,7 @@ def autoscale_jaxpr(jaxpr, consts, *args):
             raise NotImplementedError(f"{eqn.primitive} does not have an implementation for ScaledArray inputs yet")
         outvals = scaled_ops_registry[eqn.primitive](*invals)
         if not eqn.primitive.multiple_results:
-            outvals = [outvals]
+            outvals = [outvals]  # type: ignore
         safe_map(write, eqn.outvars, outvals)
 
     safe_map(read, jaxpr.outvars)
