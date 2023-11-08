@@ -1,5 +1,6 @@
-from core import ScaledArray
-import core
+from jax_scaled_arithmetics import core
+from jax_scaled_arithmetics.core import ScaledArray
+
 from jax import lax
 from functools import partial
 

@@ -5,7 +5,7 @@ import jax
 import jax.numpy as jnp
 
 from jax_scaled_arithmetics.core import ScaledArray, autoscale
-
+import jax_scaled_arithmetics.lax
 
 class AutoScaleInterpreterTests(chex.TestCase):
     def test__identity(self):
