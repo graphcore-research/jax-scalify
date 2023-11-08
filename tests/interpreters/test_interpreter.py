@@ -19,7 +19,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         expected = jnp.array([1.0, 2.0])
 
         scaled_inputs = ScaledArray(inputs, scale)
-        scaled_outputs = asfunc(scaled_inputs)[0]
+        scaled_outputs = asfunc(scaled_inputs)
 
         assert jnp.allclose(scaled_outputs.to_array(), expected)
 
@@ -47,6 +47,6 @@ class AutoScaleInterpreterTests(chex.TestCase):
 
         expected = jnp.array([-3.0, 3.0])
 
-        out = asfunc(x, y)[0]
+        out = asfunc(x, y)
 
         assert jnp.allclose(out.to_array(), expected)

@@ -52,6 +52,8 @@ def autoscale_jaxpr(jaxpr, consts, *args):
             outvals = [outvals]
         safe_map(write, eqn.outvars, outvals)
 
-    safe_map(read, jaxpr.outvars)
-
-    return safe_map(read, jaxpr.outvars)
+    outvals = safe_map(read, jaxpr.outvars)
+    if len(outvals) == 1:
+        return outvals[0]
+    else:
+        return outvals
