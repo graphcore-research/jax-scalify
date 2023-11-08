@@ -21,9 +21,11 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_inputs = ScaledArray(inputs, scale)
         scaled_outputs = asfunc(scaled_inputs)
 
-        assert jnp.allclose(scaled_outputs.to_array(), expected)
+        assert jnp.allclose(scaled_outputs.aval, expected)
 
         jaxpr = jax.make_jaxpr(asfunc)(scaled_inputs).jaxpr
+
+        # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
 
         assert jaxpr.invars[0].aval.shape == inputs.shape
         assert jaxpr.invars[1].aval.shape == ()
@@ -49,6 +51,4 @@ class AutoScaleInterpreterTests(chex.TestCase):
 
         out = asfunc(x, y)
 
-        assert jnp.allclose(out.to_array(), expected)
-
-        breakpoint()
+        assert jnp.allclose(out.aval, expected)
