@@ -1,12 +1,13 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 
+from functools import wraps
+
 import jax
 import numpy as np
-
 from jax import core
 from jax._src.util import safe_map
+
 from ..lax import scaled_ops_registry
-from functools import wraps
 
 
 def autoscale(fun):
