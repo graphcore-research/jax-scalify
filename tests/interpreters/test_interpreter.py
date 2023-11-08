@@ -4,8 +4,7 @@ import chex
 import jax
 import jax.numpy as jnp
 
-from jax_scaled_arithmetics.core import ScaledArray
-from jax_scaled_arithmetics.interpreters import autoscale
+from jax_scaled_arithmetics.core import ScaledArray, autoscale
 
 
 class AutoScaleInterpreterTests(chex.TestCase):
