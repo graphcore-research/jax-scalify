@@ -50,3 +50,5 @@ class AutoScaleInterpreterTests(chex.TestCase):
         out = asfunc(x, y)
 
         assert jnp.allclose(out.to_array(), expected)
+
+        breakpoint()
