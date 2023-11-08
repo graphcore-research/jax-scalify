@@ -1,14 +1,11 @@
+# Copyright (c) 2023 Graphcore Ltd. All rights reserved.
+
+from jax import lax
+
 from jax_scaled_arithmetics import core
 from jax_scaled_arithmetics.core import ScaledArray
 
-from jax import lax
-from functools import partial
 
-
-# Tried as decorator too
-
-
-# @partial(core.register_scaled_op, lax_func=lax.mul)
 def scaled_mul_p(A: ScaledArray, B: ScaledArray) -> ScaledArray:
     return ScaledArray(A.data * B.data, A.scale * B.scale)
 

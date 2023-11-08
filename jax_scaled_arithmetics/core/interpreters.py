@@ -9,7 +9,7 @@ from jax._src.util import safe_map
 
 from ..core import ScaledArray
 
-_scaled_ops_registry: Dict[callable, callable] = {}
+_scaled_ops_registry = {}
 
 
 def register_scaled_op(lax_func, scaled_func):
@@ -49,7 +49,7 @@ def autoscale_jaxpr(jaxpr, consts, *args):
             raise NotImplementedError(f"{eqn.primitive} does not have an implementation for ScaledArray inputs yet")
         outvals = _scaled_ops_registry[eqn.primitive](*invals)
         if not eqn.primitive.multiple_results:
-            outvals = [outvals]  # type: ignore
+            outvals = [outvals]
         safe_map(write, eqn.outvars, outvals)
 
     safe_map(read, jaxpr.outvars)
