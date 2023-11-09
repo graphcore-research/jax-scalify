@@ -3,8 +3,10 @@
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
+import numpy.testing as npt
 
-from jax_scaled_arithmetics.core import ScaledArray, autoscale
+from jax_scaled_arithmetics.core import ScaledArray, autoscale, scaled_array
 
 
 class AutoScaleInterpreterTests(chex.TestCase):
@@ -14,20 +16,16 @@ class AutoScaleInterpreterTests(chex.TestCase):
 
         asfunc = autoscale(func)
 
-        scale = jnp.array(1.0)
-        inputs = jnp.array([1.0, 2.0])
+        scaled_inputs = scaled_array([1.0, 2.0], 1, dtype=np.float32)
+        scaled_outputs = asfunc(scaled_inputs)
         expected = jnp.array([1.0, 2.0])
 
-        scaled_inputs = ScaledArray(inputs, scale)
-        scaled_outputs = asfunc(scaled_inputs)
-
-        assert jnp.allclose(scaled_outputs.aval, expected)
-
+        assert isinstance(scaled_outputs, ScaledArray)
+        npt.assert_array_almost_equal(scaled_outputs, expected)
         jaxpr = jax.make_jaxpr(asfunc)(scaled_inputs).jaxpr
 
         # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
-
-        assert jaxpr.invars[0].aval.shape == inputs.shape
+        assert jaxpr.invars[0].aval.shape == scaled_inputs.shape
         assert jaxpr.invars[1].aval.shape == ()
 
         assert jaxpr.outvars[0].aval.shape == expected.shape
@@ -39,16 +37,10 @@ class AutoScaleInterpreterTests(chex.TestCase):
 
         asfunc = autoscale(func)
 
-        x_in = jnp.array([-2.0, 2.0])
-        x_scale = jnp.array(0.5)
-        x = ScaledArray(x_in, x_scale)
-
-        y_in = jnp.array([1.5, 1.5])
-        y_scale = jnp.array(2.0)
-        y = ScaledArray(y_in, y_scale)
-
+        x = scaled_array([-2.0, 2.0], 0.5, dtype=np.float32)
+        y = scaled_array([1.5, 1.5], 2, dtype=np.float32)
         expected = jnp.array([-3.0, 3.0])
 
         out = asfunc(x, y)
-
-        assert jnp.allclose(out.aval, expected)
+        assert isinstance(out, ScaledArray)
+        npt.assert_array_almost_equal(out, expected)

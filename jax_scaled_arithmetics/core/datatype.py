@@ -3,10 +3,12 @@ from dataclasses import dataclass
 from typing import Any, Union
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 from chex import Shape
+from jax.core import ShapedArray
 from jax.tree_util import register_pytree_node_class
-from numpy.typing import DTypeLike, NDArray
+from numpy.typing import ArrayLike, DTypeLike, NDArray
 
 GenericArray = Union[jax.Array, np.ndarray]
 
@@ -80,5 +82,22 @@ class ScaledArray:
         return np.asarray(self.to_array(dtype))
 
     @property
-    def aval(self):
-        return self.data * self.scale
+    def aval(self) -> ShapedArray:
+        """Abstract value of the scaled array, i.e. shape and dtype."""
+        return ShapedArray(self.data.shape, self.data.dtype)
+
+
+def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npapi: Any = jnp) -> ScaledArray:
+    """ScaledArray (helper) factory method, similar to `(j)np.array`.
+
+    Args:
+        data: Main data/values.
+        scale: Scale tensor.
+        dtype: Optional dtype to use for the data.
+        npapi: Numpy API to use.
+    Returns:
+        Scaled array instance.
+    """
+    data = npapi.asarray(data, dtype=dtype)
+    scale = npapi.asarray(scale)
+    return ScaledArray(data, scale)
