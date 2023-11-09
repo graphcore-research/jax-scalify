@@ -5,11 +5,13 @@ import numpy.testing as npt
 
 from jax_scaled_arithmetics.core import ScaledArray, scaled_array
 from jax_scaled_arithmetics.lax import (
+    scaled_add,
     scaled_broadcast_in_dim,
     scaled_concatenate,
     scaled_convert_element_type,
     scaled_mul,
     scaled_slice,
+    scaled_sub,
     scaled_transpose,
 )
 
@@ -58,3 +60,21 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert isinstance(z, ScaledArray)
         assert z.scale == 6
         npt.assert_array_almost_equal(z, np.asarray(x) * np.asarray(y))
+
+    def test__scaled_add__proper_scaling(self):
+        x = scaled_array([-1.0, 2.0], 3.0, dtype=np.float32)
+        y = scaled_array([1.5, 4.5], 2.0, dtype=np.float32)
+        z = scaled_add(x, y)
+        assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
+        npt.assert_almost_equal(z.scale, np.sqrt(4.0 + 9.0))
+        npt.assert_array_almost_equal(z, np.asarray(x) + np.asarray(y))
+
+    def test__scaled_sub__proper_scaling(self):
+        x = scaled_array([-1.0, 2.0], 3.0, dtype=np.float32)
+        y = scaled_array([1.5, 4.5], 2.0, dtype=np.float32)
+        z = scaled_sub(x, y)
+        assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
+        npt.assert_almost_equal(z.scale, np.sqrt(4.0 + 9.0))
+        npt.assert_array_almost_equal(z, np.asarray(x) - np.asarray(y))
