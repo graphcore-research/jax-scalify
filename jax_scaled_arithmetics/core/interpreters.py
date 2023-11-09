@@ -12,8 +12,18 @@ from ..core import ScaledArray
 _scaled_ops_registry = {}
 
 
-def register_scaled_op(lax_func, scaled_func):
-    _scaled_ops_registry[lax_func] = scaled_func
+def get_lax_prim(scaled_func):
+    try:
+        op = getattr(jax.lax, scaled_func.__name__.replace("scaled_", ""))
+    except AttributeError:
+        print(f"Could not find corresponding jax.lax primitive for {scaled_func.__name__}")
+        raise
+    return op
+
+
+def register_scaled_op(scaled_func):
+    lax_prim = get_lax_prim(scaled_func)
+    _scaled_ops_registry[lax_prim] = scaled_func
 
 
 def autoscale(fun):
