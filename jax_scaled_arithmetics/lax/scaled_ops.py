@@ -1,7 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 
-from jax import lax
-
 from jax_scaled_arithmetics import core
 from jax_scaled_arithmetics.core import ScaledArray
 
