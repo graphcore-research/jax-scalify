@@ -16,6 +16,26 @@ def register_scaled_op(lax_func, scaled_func):
     _scaled_ops_registry[lax_func] = scaled_func
 
 
+def _get_lax_prim(scaled_func):
+    try:
+        op = getattr(jax.lax, scaled_func.__name__.replace("scaled_", ""))
+    except AttributeError:
+        raise AttributeError(f"Could not find corresponding jax.lax primitive for {scaled_func.__name__}")
+    return op
+
+
+def register_scaled_lax_op(scaled_func):
+    """
+    Registers a scaled function into the scaled_ops_registry by matching
+    the function name with pattern `scaled_{func_name}` to a function in the
+    `jax.lax` namespace.
+
+    Example: `scaled_mul_p` is matched to `jax.lax.mul_p`
+    """
+    lax_prim = _get_lax_prim(scaled_func)
+    register_scaled_op(lax_prim, scaled_func)
+
+
 def autoscale(fun):
     @wraps(fun)
     def wrapped(*args, **kwargs):
