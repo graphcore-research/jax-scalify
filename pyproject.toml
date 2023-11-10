@@ -29,6 +29,9 @@ Website = "https://github.com/graphcore-research/jax-scaled-arithmetics/#readme"
 [project.optional-dependencies]
 test = ["pytest"]
 
+[tool.setuptools]
+packages = ["jax_scaled_arithmetics"]
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 addopts = ["-ra", "--showlocals", "--strict-config", "-p no:hypothesispytest"]

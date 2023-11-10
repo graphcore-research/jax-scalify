@@ -6,10 +6,14 @@ import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 
-from jax_scaled_arithmetics.core import ScaledArray, autoscale, scaled_array
+from jax_scaled_arithmetics.core import ScaledArray, autoscale, register_scaled_op, scaled_array
 
 
 class AutoScaleInterpreterTests(chex.TestCase):
+    def test__register_scaled_op__error_if_already_registered(self):
+        with self.assertRaises(KeyError):
+            register_scaled_op(jax.lax.mul_p, lambda a, _: a)
+
     @chex.variants(with_jit=True, without_jit=True)
     def test__scaled_identity_function(self):
         def func(x):
@@ -34,7 +38,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         assert jaxpr.outvars[1].aval.shape == ()
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__scaled_mul_function(self):
+    def test__scaled_mul__no_attributes(self):
         def func(x, y):
             return x * y
 
@@ -48,3 +52,16 @@ class AutoScaleInterpreterTests(chex.TestCase):
         out = asfunc(x, y)
         assert isinstance(out, ScaledArray)
         npt.assert_array_almost_equal(out, expected)
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test__scaled_convert_element_type__attributes_passing(self):
+        def func(x):
+            return jax.lax.convert_element_type(x, np.float16)
+
+        # Autoscale + (optional) jitting.
+        asfunc = self.variant(autoscale(func))
+        x = scaled_array([-4.0, 2.0], 0.5, dtype=np.float32)
+        out = asfunc(x)
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == np.float16
+        npt.assert_array_almost_equal(out, x)
