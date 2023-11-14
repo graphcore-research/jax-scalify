@@ -6,6 +6,7 @@ import numpy.testing as npt
 from jax_scaled_arithmetics.core import ScaledArray, scaled_array
 from jax_scaled_arithmetics.lax import (
     scaled_broadcast_in_dim,
+    scaled_concatenate,
     scaled_convert_element_type,
     scaled_mul,
     scaled_slice,
@@ -20,6 +21,14 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert isinstance(z, ScaledArray)
         npt.assert_array_equal(z.scale, x.scale)
         npt.assert_array_almost_equal(z.data, x.data.reshape((5, 1)))
+
+    def test__scaled_concatenate__proper_scaling(self):
+        x = scaled_array(np.random.rand(2, 3), 0.5, dtype=np.float32)
+        y = scaled_array(np.random.rand(5, 3), 2, dtype=np.float32)
+        z = scaled_concatenate([x, y], dimension=0)
+        assert isinstance(z, ScaledArray)
+        npt.assert_array_equal(z.scale, y.scale)
+        npt.assert_array_almost_equal(z, np.concatenate([x, y], axis=0))
 
     def test__scaled_convert_element_type__proper_scaling(self):
         x = scaled_array(np.random.rand(5), 2, dtype=np.float32)
