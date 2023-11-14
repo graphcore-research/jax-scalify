@@ -1,5 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from typing import Optional, Sequence
+from typing import Any, Optional, Sequence, Tuple
 
 import jax.numpy as jnp
 import numpy as np
@@ -77,7 +77,33 @@ def scaled_sub(A: ScaledArray, B: ScaledArray) -> ScaledArray:
     return ScaledArray(output_data, output_scale)
 
 
-def scaled_dot(A: ScaledArray, B: ScaledArray) -> ScaledArray:
-    output_scale = A.scale * B.scale * lax.sqrt(A.data.shape[-1])
-    output_data = lax.dot(A.data, B.data) / lax.sqrt(A.data.shape[-1])
+@core.register_scaled_lax_op
+def scaled_dot_general(
+    lhs: ScaledArray,
+    rhs: ScaledArray,
+    dimension_numbers: Tuple[Tuple[Sequence[int], Sequence[int]], Tuple[Sequence[int], Sequence[int]]],
+    precision: Any = None,
+    preferred_element_type: Optional[DTypeLike] = None,
+) -> ScaledArray:
+    # Checks on `dot_general` arguments. Only supporting a subset right now.
+    ((lhs_contracting_dims, rhs_contracting_dims), (lhs_batch_dims, rhs_batch_dims)) = dimension_numbers
+    assert len(lhs_batch_dims) == 0
+    assert len(rhs_batch_dims) == 0
+    assert len(lhs_contracting_dims) == 1
+    assert len(rhs_contracting_dims) == 1
+
+    contracting_dim_size = lhs.shape[lhs_contracting_dims[0]]
+    # "unit scaling" rule, based on the contracting axis.
+    contracting_rescale = np.sqrt(contracting_dim_size).astype(lhs.dtype)
+    output_scale = lhs.scale * rhs.scale * contracting_rescale
+    output_data = (
+        lax.dot_general(
+            lhs.data,
+            rhs.data,
+            dimension_numbers=dimension_numbers,
+            precision=precision,
+            preferred_element_type=preferred_element_type,
+        )
+        / contracting_rescale
+    )
     return ScaledArray(output_data, output_scale)

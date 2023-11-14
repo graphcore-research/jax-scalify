@@ -9,6 +9,7 @@ from jax_scaled_arithmetics.lax import (
     scaled_broadcast_in_dim,
     scaled_concatenate,
     scaled_convert_element_type,
+    scaled_dot_general,
     scaled_mul,
     scaled_slice,
     scaled_sub,
@@ -78,3 +79,12 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert z.dtype == x.dtype
         npt.assert_almost_equal(z.scale, np.sqrt(4.0 + 9.0))
         npt.assert_array_almost_equal(z, np.asarray(x) - np.asarray(y))
+
+    def test__scaled_dot_general__proper_scaling(self):
+        lhs = scaled_array(np.random.rand(3, 5), 2.0, dtype=np.float32)
+        rhs = scaled_array(np.random.rand(5, 2), 3.0, dtype=np.float32)
+        out = scaled_dot_general(lhs, rhs, (((1,), (0,)), ((), ())))
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == lhs.dtype
+        npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * np.sqrt(5))
+        npt.assert_array_almost_equal(out, np.asarray(lhs) @ np.asarray(rhs))
