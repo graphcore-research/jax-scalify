@@ -101,3 +101,13 @@ def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npa
     data = npapi.asarray(data, dtype=dtype)
     scale = npapi.asarray(scale)
     return ScaledArray(data, scale)
+
+
+def is_scaled_leaf(val: Any) -> bool:
+    """Is input a JAX PyTree (scaled) leaf, including ScaledArray.
+
+    This function is useful for JAX PyTree handling where the user wants
+    to keep the ScaledArray datastructures (i.e. not flattened as a pair of arrays).
+    """
+    # TODO: check scalars as well?
+    return isinstance(val, (jax.Array, np.ndarray, ScaledArray, int, float))

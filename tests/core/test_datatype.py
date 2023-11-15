@@ -6,7 +6,7 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax.core import ShapedArray
 
-from jax_scaled_arithmetics import ScaledArray, scaled_array
+from jax_scaled_arithmetics.core import ScaledArray, is_scaled_leaf, scaled_array
 
 
 class ScaledArrayDataclassTests(chex.TestCase):
@@ -74,3 +74,11 @@ class ScaledArrayDataclassTests(chex.TestCase):
         out = np.asarray(sarr)
         assert isinstance(out, np.ndarray)
         npt.assert_array_equal(out, sarr.data * sarr.scale)
+
+    def test__is_scaled_leaf__consistent_with_jax(self):
+        assert is_scaled_leaf(8)
+        assert is_scaled_leaf(2.0)
+        assert is_scaled_leaf(np.array(3))
+        assert is_scaled_leaf(np.array([3]))
+        assert is_scaled_leaf(jnp.array([3]))
+        assert is_scaled_leaf(scaled_array(data=[1.0, 2.0], scale=3, dtype=np.float16))
