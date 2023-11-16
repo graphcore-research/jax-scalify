@@ -113,7 +113,9 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
 
         # Primitive is supported by `autoscale`?
         if eqn.primitive not in _scaled_ops_registry:
-            raise NotImplementedError(f"{eqn.primitive} does not have an implementation for ScaledArray inputs yet")
+            raise NotImplementedError(
+                f"'{eqn.primitive}' JAX primitive does not have an implementation for ScaledArray inputs yet."
+            )
         outvals = _scaled_ops_registry[eqn.primitive](*invals, **eqn.params)
         if not eqn.primitive.multiple_results:
             outvals = [outvals]
