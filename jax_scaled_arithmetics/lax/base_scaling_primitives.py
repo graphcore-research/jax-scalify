@@ -6,7 +6,7 @@ from jax import core
 from jax.interpreters import mlir
 from jax.interpreters.mlir import LoweringRuleContext, ir
 
-from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, register_scaled_op
+from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, ScaledPrimitiveType, register_scaled_op
 
 set_scaling_p = core.Primitive("set_scaling_p")
 """`set_scaling` JAX primitive.
@@ -41,11 +41,12 @@ def set_scaling_mlir_lowering(
 
 def scaled_set_scaling(values: ScaledArray, scale: ScaledArray) -> ScaledArray:
     """Scaled `set_scaling` implementation: rebalancing the data using the new scale value."""
-    assert isinstance(values, ScaledArray)
-    assert isinstance(scale, ScaledArray)
     assert scale.shape == ()
-    # TODO/FIXME: handle not scaled inputs!!!
+    # Automatic promotion should ensure we always get a scaled scalar here!
     scale_value = scale.to_array()
+    if not isinstance(values, ScaledArray):
+        # Simple case, with no pre-existing scale.
+        return ScaledArray(values / scale_value, scale_value)
     # Rebalancing data tensor using the new scale.
     data = values.data * (values.scale / scale_value)
     return ScaledArray(data, scale_value)
@@ -57,7 +58,7 @@ set_scaling_p.def_abstract_eval(set_scaling_abstract_eval)
 set_scaling_p.def_impl(set_scaling_impl)
 mlir.register_lowering(set_scaling_p, set_scaling_mlir_lowering)
 # Register "scaled" translation.
-register_scaled_op(set_scaling_p, scaled_set_scaling)
+register_scaled_op(set_scaling_p, scaled_set_scaling, ScaledPrimitiveType.ALWAYS_SCALE)
 
 
 stop_scaling_p = core.Primitive("stop_scaling_p")
@@ -102,7 +103,7 @@ def stop_scaling_mlir_lowering(
 def scaled_stop_scaling(values: ScaledArray, dtype: Optional[DTypeLike] = None) -> jax.Array:
     """Scaled `stop_scaling` implementation: returning tensor values (with optional cast)."""
     assert isinstance(values, ScaledArray)
-    # TODO/FIXME: how to handle not scaled input.
+    # TODO/FIXME: how to handle not scaled input?
     return values.to_array(dtype=dtype)
 
 

@@ -41,7 +41,7 @@ class ScaledArray:
 
     def __post_init__(self):
         assert isinstance(self.data, (jax.Array, np.ndarray))
-        assert isinstance(self.scale, (jax.Array, np.ndarray))
+        assert isinstance(self.scale, (jax.Array, np.ndarray, np.number))
         # Only supporting scale scalar for now.
         assert self.scale.shape == ()
 

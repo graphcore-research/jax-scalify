@@ -1,20 +1,36 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-
 import chex
 import jax
-
-# import jax.numpy as jnp
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import ScaledArray, autoscale, is_scaled_leaf, register_scaled_op, scaled_array
+from jax_scaled_arithmetics.core.interpreters import promote_scalar_to_scaled_array
 
 
 class AutoScaleInterpreterTests(chex.TestCase):
     def test__register_scaled_op__error_if_already_registered(self):
         with self.assertRaises(KeyError):
             register_scaled_op(jax.lax.mul_p, lambda a, _: a)
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test__autoscale_interpreter__normal_jax_mode(self):
+        def func(x):
+            return x * 2
+
+        func = self.variant(autoscale(func))
+        data = np.array([1, 2], dtype=np.float32)
+        out = func(data)
+        # Proper behaviour!
+        assert isinstance(out, jax.Array)
+        npt.assert_array_equal(out, [2, 4])
+        # Check jaxpr.
+        jaxpr = jax.make_jaxpr(func)(data).jaxpr
+        assert len(jaxpr.invars) == 1
+        assert len(jaxpr.outvars) == 1
+        assert len(jaxpr.eqns) == 1
 
     @chex.variants(with_jit=True, without_jit=True)
     def test__autoscale_interpreter__proper_signature(self):
@@ -27,7 +43,6 @@ class AutoScaleInterpreterTests(chex.TestCase):
         # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
         assert jaxpr.invars[0].aval.shape == scaled_input.shape
         assert jaxpr.invars[1].aval.shape == ()
-
         assert jaxpr.outvars[0].aval.shape == scaled_input.shape
         assert jaxpr.outvars[1].aval.shape == ()
 
@@ -78,3 +93,13 @@ class AutoScaleInterpreterTests(chex.TestCase):
             assert scaled_out.scale.shape == ()
             assert scaled_out.dtype == exp_out.dtype
             npt.assert_array_almost_equal(scaled_out, exp_out, decimal=4)
+
+    @parameterized.parameters(
+        {"input": np.array(3)},
+        {"input": jnp.array(3)},
+    )
+    def test__promote_scalar_to_scaled_array__proper_output(self, input):
+        scaled_val = promote_scalar_to_scaled_array(input)
+        assert isinstance(scaled_val, ScaledArray)
+        npt.assert_array_equal(scaled_val.data, 1)
+        npt.assert_array_equal(scaled_val.scale, input)

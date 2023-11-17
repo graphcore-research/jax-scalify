@@ -4,6 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
+from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import ScaledArray, autoscale, scaled_array
 from jax_scaled_arithmetics.lax import set_scaling, stop_scaling
@@ -22,14 +23,17 @@ class SetScalingPrimitiveTests(chex.TestCase):
         npt.assert_array_equal(out, arr)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__set_scaling_primitive__proper_result_with_autoscale(self):
+    @parameterized.parameters(
+        # Testing different combination of scaled/unscaled inputs.
+        {"arr": np.array([-1.0, 2.0], dtype=np.float32), "scale": np.array(4.0, dtype=np.float32)},
+        {"arr": scaled_array([-1.0, 2.0], 1.0, dtype=np.float32), "scale": np.array(4.0, dtype=np.float32)},
+        {"arr": scaled_array([-1.0, 2.0], 1.0, dtype=np.float32), "scale": scaled_array(1.0, 4.0, dtype=np.float32)},
+    )
+    def test__set_scaling_primitive__proper_result_with_autoscale(self, arr, scale):
         def fn(arr, scale):
             return set_scaling(arr, scale)
 
         fn = self.variant(autoscale(fn))
-        arr = scaled_array([-1.0, 2.0], 1.0, dtype=np.float32)
-        # TODO: support scalar here!
-        scale = scaled_array(1.0, 4.0, dtype=np.float32)
         out = fn(arr, scale)
         # Unchanged output tensor!
         assert isinstance(out, ScaledArray)
