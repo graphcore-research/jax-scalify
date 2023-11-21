@@ -103,6 +103,22 @@ def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npa
     return ScaledArray(data, scale)
 
 
+def asarray(val: Any, dtype: DTypeLike = None) -> GenericArray:
+    """Convert back to a common JAX/Numpy array.
+
+    Args:
+        dtype: Optional dtype of the final array.
+    """
+    if isinstance(val, ScaledArray):
+        return val.to_array(dtype=dtype)
+    elif isinstance(val, (jax.Array, np.ndarray)):
+        if dtype is None:
+            return val
+        return val.astype(dtype=dtype)
+    # Convert to Numpy all other cases?
+    return np.asarray(val, dtype=dtype)
+
+
 def is_scaled_leaf(val: Any) -> bool:
     """Is input a JAX PyTree (scaled) leaf, including ScaledArray.
 

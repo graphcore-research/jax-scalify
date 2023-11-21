@@ -13,8 +13,11 @@ from jax_scaled_arithmetics.lax import (
     scaled_concatenate,
     scaled_convert_element_type,
     scaled_dot_general,
+    scaled_exp,
     scaled_is_finite,
+    scaled_log,
     scaled_mul,
+    scaled_select_n,
     scaled_slice,
     scaled_sub,
     scaled_transpose,
@@ -98,6 +101,22 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * np.sqrt(5))
         npt.assert_array_almost_equal(out, np.asarray(lhs) @ np.asarray(rhs))
 
+    def test__scaled_exp__proper_scaling(self):
+        val = scaled_array(self.rs.rand(3, 5), 2.0, dtype=np.float32)
+        out = scaled_exp(val)
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == val.dtype
+        npt.assert_almost_equal(out.scale, 1)  # FIXME!
+        npt.assert_array_almost_equal(out, np.exp(val))
+
+    def test__scaled_log__proper_scaling(self):
+        val = scaled_array(self.rs.rand(3, 5), 2.0, dtype=np.float32)
+        out = scaled_log(val)
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == val.dtype
+        npt.assert_almost_equal(out.scale, 1)  # FIXME!
+        npt.assert_array_almost_equal(out, np.log(val))
+
 
 class ScaledTranslationReducePrimitivesTests(chex.TestCase):
     def setUp(self):
@@ -161,3 +180,13 @@ class ScaledTranslationBooleanPrimitivesTests(chex.TestCase):
         assert out0.dtype == np.bool_
         npt.assert_array_equal(out0, bool_prim.bind(lhs.to_array(), rhs.to_array()))
         npt.assert_array_equal(out1, bool_prim.bind(lhs.to_array(), lhs.to_array()))
+
+    def test__scaled_select_n__proper_result(self):
+        mask = self.rs.rand(5) > 0.5
+        lhs = scaled_array(self.rs.rand(5), 2.0, dtype=np.float32)
+        rhs = scaled_array(self.rs.rand(5), 3.0, dtype=np.float32)
+        out = scaled_select_n(mask, lhs, rhs)
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == np.float32
+        npt.assert_almost_equal(out.scale, 1)  # FIXME!
+        npt.assert_array_equal(out, np.where(mask, rhs, lhs))

@@ -6,7 +6,7 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax.core import ShapedArray
 
-from jax_scaled_arithmetics.core import ScaledArray, is_scaled_leaf, scaled_array
+from jax_scaled_arithmetics.core import ScaledArray, asarray, is_scaled_leaf, scaled_array
 
 
 class ScaledArrayDataclassTests(chex.TestCase):
@@ -82,3 +82,23 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert is_scaled_leaf(np.array([3]))
         assert is_scaled_leaf(jnp.array([3]))
         assert is_scaled_leaf(scaled_array(data=[1.0, 2.0], scale=3, dtype=np.float16))
+
+    @parameterized.parameters(
+        {"data": np.array(2)},
+        {"data": np.array([1, 2])},
+        {"data": jnp.array([1, 2])},
+    )
+    def test__asarray__unchanged_dtype(self, data):
+        output = asarray(data)
+        assert output.dtype == data.dtype
+        npt.assert_array_almost_equal(output, data)
+
+    @parameterized.parameters(
+        {"data": np.array([1, 2])},
+        {"data": jnp.array([1, 2])},
+        {"data": scaled_array(data=[1.0, 2.0], scale=3, dtype=np.float32)},
+    )
+    def test__asarray__changed_dtype(self, data):
+        output = asarray(data, dtype=np.float16)
+        assert output.dtype == np.float16
+        npt.assert_array_almost_equal(output, data)
