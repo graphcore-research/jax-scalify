@@ -2,8 +2,10 @@
 import chex
 import numpy as np
 import numpy.testing as npt
+from absl.testing import parameterized
+from jax import lax
 
-from jax_scaled_arithmetics.core import ScaledArray, scaled_array
+from jax_scaled_arithmetics.core import ScaledArray, find_registered_scaled_op, scaled_array
 from jax_scaled_arithmetics.lax import (
     scaled_add,
     scaled_broadcast_in_dim,
@@ -93,3 +95,28 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert out.dtype == lhs.dtype
         npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * np.sqrt(5))
         npt.assert_array_almost_equal(out, np.asarray(lhs) @ np.asarray(rhs))
+
+
+class ScaledTranslationReducePrimitivesTests(chex.TestCase):
+    def setUp(self):
+        super().setUp()
+        # Use random state for reproducibility!
+        self.rs = np.random.RandomState(42)
+
+    @parameterized.parameters(
+        {"reduce_prim": lax.reduce_sum_p, "expected_scale": 2 * np.sqrt(5)},
+        {"reduce_prim": lax.reduce_prod_p, "expected_scale": 2**5},
+        {"reduce_prim": lax.reduce_min_p, "expected_scale": 2},
+        {"reduce_prim": lax.reduce_max_p, "expected_scale": 2},
+    )
+    def test__scaled_reduce__single_axis__proper_scaling(self, reduce_prim, expected_scale):
+        axes = (0,)
+        val = scaled_array(self.rs.rand(5), 2.0, dtype=np.float32)
+        scaled_reduce_op, _ = find_registered_scaled_op(reduce_prim)
+        out = scaled_reduce_op(val, axes=axes)
+
+        assert isinstance(out, ScaledArray)
+        assert out.shape == ()
+        assert out.dtype == val.dtype
+        npt.assert_almost_equal(out.scale, expected_scale)
+        npt.assert_array_almost_equal(out, reduce_prim.bind(np.asarray(val), axes=axes))

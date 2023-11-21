@@ -1,7 +1,7 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from enum import IntEnum
 from functools import wraps
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import jax
 import numpy as np
@@ -10,7 +10,24 @@ from jax._src.util import safe_map
 
 from .datatype import NDArray, ScaledArray
 
-_scaled_ops_registry: Dict[core.Primitive, Any] = {}
+
+class ScaledPrimitiveType(IntEnum):
+    """Scale (JAX) primitive type.
+
+    This enum described the behaviour when `autoscale` is
+    tracing the graph.
+
+    FORWARD: Forwarding scaling => only used if scaled inputs.
+        Default behaviour.
+    ALWAYS_SCALE: Always use scaled version.
+    """
+
+    NEVER = 0
+    FORWARD = 1
+    ALWAYS_SCALE = 2
+
+
+_scaled_ops_registry: Dict[core.Primitive, Tuple[Any, ScaledPrimitiveType]] = {}
 
 
 def _get_lax_prim(scaled_func: Any) -> core.Primitive:
@@ -41,22 +58,6 @@ def promote_scalar_to_scaled_array(val: Any) -> ScaledArray:
     # Just a Numpy constant for data => can be optimized out in XLA compiler.
     onedata = np.array(1, dtype=val.dtype)
     return ScaledArray(data=onedata, scale=val)
-
-
-class ScaledPrimitiveType(IntEnum):
-    """Scale (JAX) primitive type.
-
-    This enum described the behaviour when `autoscale` is
-    tracing the graph.
-
-    FORWARD: Forwarding scaling => only used if scaled inputs.
-        Default behaviour.
-    ALWAYS_SCALE: Always use scaled version.
-    """
-
-    NEVER = 0
-    FORWARD = 1
-    ALWAYS_SCALE = 2
 
 
 def numpy_constant_scaled_array(val: NDArray[Any]) -> ScaledArray:
@@ -100,6 +101,16 @@ def register_scaled_lax_op(scaled_func):
     register_scaled_op(lax_prim, scaled_func, ScaledPrimitiveType.FORWARD)
     # Always return the function in the case of decorator use.
     return scaled_func
+
+
+def find_registered_scaled_op(prim: core.Primitive) -> Tuple[Any, ScaledPrimitiveType]:
+    """Find a registered JAX scaled operation/translation. Returns (None, None) if
+    the primitive does not have a scaled translation registered.
+
+    Args:
+        prim: JAX primitive.
+    """
+    return _scaled_ops_registry.get(prim, (None, ScaledPrimitiveType.NEVER))
 
 
 def autoscale(fun):

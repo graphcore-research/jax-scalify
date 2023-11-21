@@ -107,3 +107,41 @@ def scaled_dot_general(
         / contracting_rescale
     )
     return ScaledArray(output_data, output_scale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_sum(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    shape = val.shape
+    axes_size = np.array([shape[idx] for idx in axes])
+    # Rescale data component following reduction axes.
+    axes_rescale = np.sqrt(np.prod(axes_size))
+    data = lax.reduce_sum_p.bind(val.data, axes=axes) / axes_rescale
+    outscale = val.scale * axes_rescale
+    return ScaledArray(data, outscale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_prod(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    shape = val.shape
+    data = lax.reduce_prod_p.bind(val.data, axes=axes)
+    axes_size = np.prod(np.array([shape[idx] for idx in axes]))
+    scale = lax.integer_pow(val.scale, axes_size)
+    return ScaledArray(data, scale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_max(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    data = lax.reduce_max_p.bind(val.data, axes=axes)
+    # unchanged scaling.
+    return ScaledArray(data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_min(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    data = lax.reduce_min_p.bind(val.data, axes=axes)
+    # unchanged scaling.
+    return ScaledArray(data, val.scale)
