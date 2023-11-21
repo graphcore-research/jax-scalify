@@ -1,6 +1,7 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from typing import Any, Optional, Sequence, Tuple
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import lax
@@ -145,3 +146,52 @@ def scaled_reduce_min(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
     data = lax.reduce_min_p.bind(val.data, axes=axes)
     # unchanged scaling.
     return ScaledArray(data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_is_finite(val: ScaledArray) -> jax.Array:
+    assert isinstance(val, ScaledArray)
+    if np.issubdtype(val.scale.dtype, np.integer):
+        # Integer scale case => only check the data component.
+        return lax.is_finite(val.data)
+    # Both data & scale need to be finite!
+    return lax.and_p.bind(lax.is_finite(val.data), lax.is_finite(val.scale))
+
+
+def scaled_boolean_binary_op(lhs: ScaledArray, rhs: ScaledArray, prim: jax.core.Primitive) -> jax.Array:
+    """Generic implementation of any boolean binary operation."""
+    assert isinstance(lhs, ScaledArray)
+    assert isinstance(rhs, ScaledArray)
+    # FIXME: fix this absolute horror!
+    # TODO: use max scale + special case for scalars.
+    return prim.bind(lhs.to_array(dtype=np.float32), rhs.to_array(dtype=np.float32))
+
+
+@core.register_scaled_lax_op
+def scaled_eq(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+    return scaled_boolean_binary_op(lhs, rhs, lax.eq_p)
+
+
+@core.register_scaled_lax_op
+def scaled_ne(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+    return scaled_boolean_binary_op(lhs, rhs, lax.ne_p)
+
+
+@core.register_scaled_lax_op
+def scaled_gt(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+    return scaled_boolean_binary_op(lhs, rhs, lax.gt_p)
+
+
+@core.register_scaled_lax_op
+def scaled_ge(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+    return scaled_boolean_binary_op(lhs, rhs, lax.ge_p)
+
+
+@core.register_scaled_lax_op
+def scaled_lt(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+    return scaled_boolean_binary_op(lhs, rhs, lax.lt_p)
+
+
+@core.register_scaled_lax_op
+def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+    return scaled_boolean_binary_op(lhs, rhs, lax.le_p)

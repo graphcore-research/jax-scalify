@@ -1,5 +1,6 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import chex
+import jax
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
@@ -12,6 +13,7 @@ from jax_scaled_arithmetics.lax import (
     scaled_concatenate,
     scaled_convert_element_type,
     scaled_dot_general,
+    scaled_is_finite,
     scaled_mul,
     scaled_slice,
     scaled_sub,
@@ -120,3 +122,42 @@ class ScaledTranslationReducePrimitivesTests(chex.TestCase):
         assert out.dtype == val.dtype
         npt.assert_almost_equal(out.scale, expected_scale)
         npt.assert_array_almost_equal(out, reduce_prim.bind(np.asarray(val), axes=axes))
+
+
+class ScaledTranslationBooleanPrimitivesTests(chex.TestCase):
+    def setUp(self):
+        super().setUp()
+        # Use random state for reproducibility!
+        self.rs = np.random.RandomState(42)
+
+    @parameterized.parameters(
+        {"val": scaled_array([2, 3], 2.0, dtype=np.float32), "expected_out": [True, True]},
+        # Supporting `int` scale as well.
+        {"val": scaled_array([2, np.inf], 2, dtype=np.float32), "expected_out": [True, False]},
+        {"val": scaled_array([2, 3], np.nan, dtype=np.float32), "expected_out": [False, False]},
+        {"val": scaled_array([np.nan, 3], 3.0, dtype=np.float32), "expected_out": [False, True]},
+    )
+    def test__scaled_is_finite__proper_result(self, val, expected_out):
+        out = scaled_is_finite(val)
+        assert isinstance(out, jax.Array)
+        assert out.dtype == np.bool_
+        npt.assert_array_equal(out, expected_out)
+
+    @parameterized.parameters(
+        {"bool_prim": lax.eq_p},
+        {"bool_prim": lax.ne_p},
+        {"bool_prim": lax.lt_p},
+        {"bool_prim": lax.le_p},
+        {"bool_prim": lax.gt_p},
+        {"bool_prim": lax.ge_p},
+    )
+    def test__scaled_boolean_binary_op__proper_result(self, bool_prim):
+        lhs = scaled_array(self.rs.rand(5), 2.0, dtype=np.float32)
+        rhs = scaled_array(self.rs.rand(5), 3.0, dtype=np.float32)
+        scaled_bool_op, _ = find_registered_scaled_op(bool_prim)
+        out0 = scaled_bool_op(lhs, rhs)
+        out1 = scaled_bool_op(lhs, lhs)
+        assert isinstance(out0, jax.Array)
+        assert out0.dtype == np.bool_
+        npt.assert_array_equal(out0, bool_prim.bind(lhs.to_array(), rhs.to_array()))
+        npt.assert_array_equal(out1, bool_prim.bind(lhs.to_array(), lhs.to_array()))
