@@ -1,11 +1,12 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from enum import IntEnum
-from functools import wraps
-from typing import Any, Dict, Tuple
+from functools import partial, wraps
+from typing import Any, Dict, Sequence, Tuple
 
 import jax
 import numpy as np
 from jax import core
+from jax._src.pjit import pjit_p
 from jax._src.util import safe_map
 
 from .datatype import NDArray, ScaledArray
@@ -196,3 +197,29 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
 
     outvals = safe_map(read, jaxpr.outvars)
     return outvals
+
+
+def scaled_pjit_translation(*args: ScaledArray, **kwargs: Any) -> Sequence[ScaledArray]:
+    """Scaled translation of `pjit`. Basically re-running `autoscale` on sub-jaxpr.
+
+    NOTE: the `pjit` call will be kept, forwarding the proper parameters (shardings, ...).
+    """
+    closed_jaxpr = kwargs["jaxpr"]
+    name = kwargs["name"]
+    inline = kwargs["inline"]
+    keep_unused = kwargs["keep_unused"]
+    # TODO: properly adapt + pass these options.
+    # donated_invars = kwargs["donated_invars"]
+    # in_shardings = kwargs["in_shardings"]
+    # out_shardings = kwargs["out_shardings"]
+
+    # Generate the sub-scaled function, with proper `jax.jit` options.
+    subfunc = partial(autoscale_jaxpr, closed_jaxpr.jaxpr, closed_jaxpr.literals)
+    subfunc.__name__ = name  # type:ignore
+    subfunc = jax.jit(subfunc, inline=inline, keep_unused=keep_unused)
+
+    outputs_scaled_flat = subfunc(*args)
+    return outputs_scaled_flat
+
+
+register_scaled_op(pjit_p, scaled_pjit_translation)
