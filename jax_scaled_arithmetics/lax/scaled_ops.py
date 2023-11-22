@@ -2,12 +2,21 @@
 from typing import Any, Optional, Sequence, Tuple
 
 import jax
+import jax.core
 import jax.numpy as jnp
 import numpy as np
 from jax import lax
 
 from jax_scaled_arithmetics import core
 from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape
+
+from .base_scaling_primitives import scaled_set_scaling
+
+
+@core.register_scaled_lax_op
+def scaled_stop_gradient(val: ScaledArray) -> ScaledArray:
+    # Stop gradients on both data and scale tensors.
+    return ScaledArray(lax.stop_gradient(val.data), lax.stop_gradient(val.scale))
 
 
 @core.register_scaled_lax_op
@@ -195,3 +204,40 @@ def scaled_lt(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
 @core.register_scaled_lax_op
 def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.le_p)
+
+
+##################################################################
+# Default scaled ops implementation #
+##################################################################
+def scaled_op_default_translation(
+    prim: jax.core.Primitive, args: Sequence[ScaledArray], outscale: Optional[jax.Array] = None
+) -> ScaledArray:
+    """Scaled op default translation of a JAX primitive: unscaling inputs + calling normal primitive.
+
+    Args:
+        prim: JAX primitive
+        args: Input arguments.
+        outscale: Output scale to use.
+    """
+    inputs = [core.asarray(v) for v in args]
+    output = prim.bind(*inputs)
+    # Rescale output, if necessary.
+    if outscale is None:
+        return ScaledArray(output, np.array(1.0, dtype=output.dtype))
+    output_scaled = scaled_set_scaling(output, outscale)
+    return output_scaled
+
+
+@core.register_scaled_lax_op
+def scaled_exp(val: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.exp_p, [val])
+
+
+@core.register_scaled_lax_op
+def scaled_log(val: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.log_p, [val])
+
+
+@core.register_scaled_lax_op
+def scaled_select_n(which: jax.Array, *cases: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.select_n_p, [which, *cases])
