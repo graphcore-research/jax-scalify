@@ -122,9 +122,12 @@ class AutoScaleInterpreterTests(chex.TestCase):
     @parameterized.parameters(
         {"input": np.array(3)},
         {"input": jnp.array(3)},
+        {"input": 3},
+        {"input": 3.0},
     )
     def test__promote_scalar_to_scaled_array__proper_output(self, input):
         scaled_val = promote_scalar_to_scaled_array(input)
         assert isinstance(scaled_val, ScaledArray)
+        assert scaled_val.data.dtype == scaled_val.scale.dtype
         npt.assert_array_equal(scaled_val.data, 1)
         npt.assert_array_equal(scaled_val.scale, input)

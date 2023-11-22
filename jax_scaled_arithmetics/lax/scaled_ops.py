@@ -13,6 +13,28 @@ from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape
 from .base_scaling_primitives import scaled_set_scaling
 
 
+def check_scalar_scales(*args: ScaledArray):
+    """Check all ScaledArrays have scalar scaling."""
+    for val in args:
+        assert np.ndim(val.scale) == 0
+
+
+def promote_scale_types(*args: ScaledArray) -> Sequence[ScaledArray]:
+    """Promote scale datatypes to a common one.
+
+    Note: we are using JAX Numpy promotion, to avoid 64bits types by default.
+    """
+    if len(args) == 1:
+        return args
+    # Find a common scale datatype.
+    scale_dtype = args[0].scale.dtype
+    for val in args[1:]:
+        scale_dtype = jnp.promote_types(scale_dtype, val.scale.dtype)
+
+    outputs = [ScaledArray(v.data, v.scale.astype(scale_dtype)) for v in args]
+    return outputs
+
+
 @core.register_scaled_lax_op
 def scaled_stop_gradient(val: ScaledArray) -> ScaledArray:
     # Stop gradients on both data and scale tensors.
@@ -65,9 +87,9 @@ def scaled_mul(A: ScaledArray, B: ScaledArray) -> ScaledArray:
 
 @core.register_scaled_lax_op
 def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
-    # Only supporting floating scale right now.
-    assert A.scale.dtype == B.scale.dtype
-    assert np.issubdtype(A.scale, np.floating)
+    check_scalar_scales(A, B)
+    A, B = promote_scale_types(A, B)
+    assert np.issubdtype(A.scale.dtype, np.floating)
     # TODO: what happens to `sqrt` for non-floating scale?
     output_scale = lax.sqrt(A.scale**2 + B.scale**2)
     # check correct type output if mismatch between data and scale precision
@@ -77,9 +99,10 @@ def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
 
 @core.register_scaled_lax_op
 def scaled_sub(A: ScaledArray, B: ScaledArray) -> ScaledArray:
+    check_scalar_scales(A, B)
+    A, B = promote_scale_types(A, B)
     # Only supporting floating scale right now.
-    assert A.scale.dtype == B.scale.dtype
-    assert np.issubdtype(A.scale, np.floating)
+    assert np.issubdtype(A.scale.dtype, np.floating)
     # TODO: what happens to `sqrt` for non-floating scale?
     output_scale = lax.sqrt(A.scale**2 + B.scale**2)
     # check correct type output if mismatch between data and scale precision
