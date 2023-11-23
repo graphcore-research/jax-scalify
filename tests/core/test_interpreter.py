@@ -32,21 +32,41 @@ class AutoScaleInterpreterTests(chex.TestCase):
         assert len(jaxpr.outvars) == 1
         assert len(jaxpr.eqns) == 1
 
-    @chex.variants(with_jit=True, without_jit=True)
-    def test__autoscale_interpreter__proper_signature(self):
+    def test__autoscale_interpreter__without_jit__proper_jaxpr_signature(self):
         def func(x):
             return x * 2
 
-        scaled_func = self.variant(autoscale(func))
+        scaled_func = autoscale(func)
         scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
         jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
+        # Need 3 equations: 2 mul + 1 cast.
+        assert len(jaxpr.eqns) == 3
         # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
         assert jaxpr.invars[0].aval.shape == scaled_input.shape
         assert jaxpr.invars[1].aval.shape == ()
         assert jaxpr.outvars[0].aval.shape == scaled_input.shape
         assert jaxpr.outvars[1].aval.shape == ()
 
-    @chex.variants(with_jit=True, without_jit=True)
+    def test__autoscale_interpreter__with_jit__proper_jaxpr_signature(self):
+        def myfunc(x):
+            return x * 2
+
+        scaled_func = autoscale(jax.jit(myfunc))
+        scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
+        jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
+        # One main jit equation.
+        assert len(jaxpr.eqns) == 1
+        eqn = jaxpr.eqns[0]
+        assert eqn.primitive.name == "pjit"
+        assert eqn.params["name"] == "myfunc"
+        # TODO: other parameters.
+        # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
+        assert jaxpr.invars[0].aval.shape == scaled_input.shape
+        assert jaxpr.invars[1].aval.shape == ()
+        assert jaxpr.outvars[0].aval.shape == scaled_input.shape
+        assert jaxpr.outvars[1].aval.shape == ()
+
+    @chex.variants(with_jit=False, without_jit=True)
     @parameterized.parameters(
         # Identity function!
         {"fn": lambda x: x, "inputs": [scaled_array([1.0, 2.0], 3, dtype=np.float32)]},
@@ -66,6 +86,11 @@ class AutoScaleInterpreterTests(chex.TestCase):
         {
             "fn": lambda x: x * 2,
             "inputs": [scaled_array([[-2.0, 0.5]], 0.5, dtype=np.float32)],
+        },
+        # Internal `pjit` primitive call.
+        {
+            "fn": jax.jit(lambda x, y: x * y),
+            "inputs": [scaled_array([-2.0, 0.5], 0.5, dtype=np.float32), scaled_array([1.5, 1.5], 2, dtype=np.float32)],
         },
         # TODO/FIXME: Proper constant Numpy array handling.
         # {
