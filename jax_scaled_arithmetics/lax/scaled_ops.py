@@ -264,3 +264,13 @@ def scaled_log(val: ScaledArray) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_select_n(which: jax.Array, *cases: ScaledArray) -> ScaledArray:
     return scaled_op_default_translation(lax.select_n_p, [which, *cases])
+
+
+@core.register_scaled_lax_op
+def scaled_cos(val: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.cos_p, [val])
+
+
+@core.register_scaled_lax_op
+def scaled_sin(val: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.sin_p, [val])
