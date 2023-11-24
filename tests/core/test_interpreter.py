@@ -66,10 +66,20 @@ class AutoScaleInterpreterTests(chex.TestCase):
         assert jaxpr.outvars[0].aval.shape == scaled_input.shape
         assert jaxpr.outvars[1].aval.shape == ()
 
-    @chex.variants(with_jit=False, without_jit=True)
+    @chex.variants(with_jit=True, without_jit=True)
     @parameterized.parameters(
         # Identity function!
         {"fn": lambda x: x, "inputs": [scaled_array([1.0, 2.0], 3, dtype=np.float32)]},
+        # Non-trivial input JAX pytree.
+        {
+            "fn": lambda vals: vals["x"] * vals["y"],
+            "inputs": [
+                {
+                    "x": scaled_array([1.0, 2.0], 3, dtype=np.float32),
+                    "y": scaled_array([1.5, -2.5], 2, dtype=np.float32),
+                }
+            ],
+        },
         # Non-trivial output JAX pytree
         {"fn": lambda x: {"x": (x,)}, "inputs": [scaled_array([1.0, 2.0], 3, dtype=np.float32)]},
         # Multi-inputs operation.
@@ -103,7 +113,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_fn = self.variant(autoscale(fn))
         scaled_output = scaled_fn(*inputs)
         # Normal JAX path, without scaled arrays.
-        raw_inputs = [np.asarray(v) for v in inputs]
+        raw_inputs = jax.tree_map(np.asarray, inputs, is_leaf=is_scaled_leaf)
         expected_output = self.variant(fn)(*raw_inputs)
 
         # Do we re-construct properly the output type (i.e. handling Pytree properly)?

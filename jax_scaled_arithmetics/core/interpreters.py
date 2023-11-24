@@ -9,7 +9,7 @@ from jax import core
 from jax._src.pjit import pjit_p
 from jax._src.util import safe_map
 
-from .datatype import NDArray, ScaledArray
+from .datatype import NDArray, ScaledArray, is_scaled_leaf
 
 
 class ScaledPrimitiveType(IntEnum):
@@ -138,14 +138,16 @@ def autoscale(fun):
         if len(kwargs) > 0:
             raise NotImplementedError("`autoscale` JAX interpreter not supporting named tensors at present.")
 
-        aval_args = safe_map(lambda x: _get_aval(x), args)
+        aval_args = jax.tree_map(_get_aval, args, is_leaf=is_scaled_leaf)
         # Get jaxpr of unscaled/normal graph. Getting output Pytree shape as well.
         closed_jaxpr, outshape = jax.make_jaxpr(fun, return_shape=True)(*aval_args, **kwargs)
         out_leaves, out_pytree = jax.tree_util.tree_flatten(outshape)
 
+        # Flattening of PyTree inputs.
         inputs_scaled = args
+        inputs_scaled_flat, _ = jax.tree_util.tree_flatten(inputs_scaled, is_leaf=is_scaled_leaf)
         # Trace the graph & convert to scaled one.
-        outputs_scaled_flat = autoscale_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *inputs_scaled)
+        outputs_scaled_flat = autoscale_jaxpr(closed_jaxpr.jaxpr, closed_jaxpr.literals, *inputs_scaled_flat)
         # Reconstruct the output Pytree, with scaled arrays.
         # NOTE: this step is also handling single vs multi outputs.
         assert len(out_leaves) == len(outputs_scaled_flat)
@@ -174,6 +176,8 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
         # No promotion rule => just return as such.
         return val
 
+    # A few initial checks to make sure there is consistency.
+    assert len(jaxpr.invars) == len(args)
     safe_map(write, jaxpr.invars, args)
     safe_map(write, jaxpr.constvars, consts)
 
