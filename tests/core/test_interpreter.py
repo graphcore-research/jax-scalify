@@ -1,12 +1,20 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import chex
 import jax
+import jax.lax
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
-from jax_scaled_arithmetics.core import ScaledArray, autoscale, is_scaled_leaf, register_scaled_op, scaled_array
+from jax_scaled_arithmetics.core import (
+    ScaledArray,
+    asarray,
+    autoscale,
+    is_scaled_leaf,
+    register_scaled_op,
+    scaled_array,
+)
 from jax_scaled_arithmetics.core.interpreters import promote_scalar_to_scaled_array
 
 
@@ -128,6 +136,39 @@ class AutoScaleInterpreterTests(chex.TestCase):
             assert scaled_out.scale.shape == ()
             assert scaled_out.dtype == exp_out.dtype
             npt.assert_array_almost_equal(scaled_out, exp_out, decimal=4)
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test__autoscale_decorator__custom_jvp__proper_graph_transformation_and_result(self):
+        # JAX official `jvp` example.
+        @jax.custom_jvp
+        def f(x, y):
+            return jnp.sin(x) * y
+
+        @f.defjvp
+        def f_jvp(primals, tangents):
+            x, y = primals
+            x_dot, y_dot = tangents
+            primal_out = f(x, y)
+            tangent_out = jnp.cos(x) * x_dot * y + jnp.sin(x) * y_dot
+            return primal_out, tangent_out
+
+        def fn(x, y):
+            return jax.jvp(f, (x, y), (x, y))
+
+        # `autoscale` on `custom_jvp` method.
+        scaled_inputs = (
+            scaled_array([-2.0, 0.5], 0.5, dtype=np.float32),
+            scaled_array([1.5, -4.5], 2, dtype=np.float32),
+        )
+        scaled_primals, scaled_tangents = self.variant(autoscale(fn))(*scaled_inputs)
+        # JAX default/expected values
+        inputs = tuple(map(asarray, scaled_inputs))
+        primals, tangents = self.variant(fn)(*inputs)
+
+        assert isinstance(scaled_primals, ScaledArray)
+        assert isinstance(scaled_tangents, ScaledArray)
+        npt.assert_array_almost_equal(scaled_primals, primals)
+        npt.assert_array_almost_equal(scaled_tangents, tangents)
 
     @parameterized.parameters(
         {"input": np.array(3)},

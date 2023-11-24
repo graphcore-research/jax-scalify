@@ -6,6 +6,7 @@ from typing import Any, Dict, Sequence, Tuple
 import jax
 import numpy as np
 from jax import core
+from jax._src.custom_derivatives import custom_jvp_call_p, custom_vjp_call_p
 from jax._src.pjit import pjit_p
 from jax._src.util import safe_map
 
@@ -190,7 +191,8 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
 
         if not any_scaled_inputs and scaled_prim_type != ScaledPrimitiveType.ALWAYS_SCALE:
             # Using normal JAX primitive: no scaled inputs, and not always scale rule.
-            outvals = eqn.primitive.bind(*invals, **eqn.params)
+            subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
+            outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
         elif scaled_prim_fn is None:
             raise NotImplementedError(
                 f"'{eqn.primitive}' JAX primitive does not have an implementation for ScaledArray inputs yet."
@@ -232,3 +234,27 @@ def scaled_pjit_translation(*args: ScaledArray, **kwargs: Any) -> Sequence[Scale
 
 
 register_scaled_op(pjit_p, scaled_pjit_translation)
+
+
+def scaled_custom_jvp_call_translation(*args: ScaledArray, **params: Any) -> Sequence[ScaledArray]:
+    """Scaled translation of `custom_jvp_call` primitive. Forwarding the scaled call to sub-jaxpr,
+    and modifying the underlying `jvp` function.
+    """
+    # [fun, jvp], bind_params = custom_jvp_call_p.get_bind_params(params)
+    call_closed_jaxpr = params["call_jaxpr"]
+    # FIXME: re-call the custom_jvp decorator/bind.
+    call_subfunc = partial(autoscale_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
+    return call_subfunc(*args)
+
+
+register_scaled_op(custom_jvp_call_p, scaled_custom_jvp_call_translation)
+
+
+def scaled_custom_vjp_call_translation(*args: ScaledArray, **params: Any) -> Sequence[ScaledArray]:
+    """Scaled translation of `custom_vjp_call` primitive. Forwarding the scaled call to sub-jaxpr,
+    and modifying the underlying `vjp` function.
+    """
+    raise NotImplementedError("Scaled custom VJP primitive not yet supported.")
+
+
+register_scaled_op(custom_vjp_call_p, scaled_custom_vjp_call_translation)
