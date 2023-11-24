@@ -55,8 +55,13 @@ def promote_scalar_to_scaled_array(val: Any) -> ScaledArray:
 
     Note: needs to work with any input type, including JAX tracer ones.
     """
-    assert val.shape == ()
+    # int / float special cases
+    if isinstance(val, float):
+        return ScaledArray(data=np.array(1, dtype=np.float32), scale=np.float32(val))
+    elif isinstance(val, int):
+        return ScaledArray(data=np.array(1, dtype=np.int32), scale=np.int32(val))
     # Just a Numpy constant for data => can be optimized out in XLA compiler.
+    assert val.shape == ()
     onedata = np.array(1, dtype=val.dtype)
     return ScaledArray(data=onedata, scale=val)
 
@@ -67,7 +72,7 @@ def numpy_constant_scaled_array(val: NDArray[Any]) -> ScaledArray:
     Only supporting Numpy scalars at the moment.
     """
     # TODO: generalized rules!
-    assert val.shape == ()
+    assert np.ndim(val) == 0
     assert np.issubdtype(val.dtype, np.floating)
     return ScaledArray(data=np.array(1.0, dtype=val.dtype), scale=np.copy(val))
 
@@ -164,7 +169,7 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
     def promote_to_scaled_array(val):
         if isinstance(val, ScaledArray):
             return val
-        elif val.shape == ():
+        elif np.ndim(val) == 0:
             return promote_scalar_to_scaled_array(val)
         # No promotion rule => just return as such.
         return val
