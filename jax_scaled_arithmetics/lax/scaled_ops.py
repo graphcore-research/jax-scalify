@@ -6,9 +6,10 @@ import jax.core
 import jax.numpy as jnp
 import numpy as np
 from jax import lax
+from jax._src.ad_util import add_any_p
 
 from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape
+from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape, register_scaled_op
 
 from .base_scaling_primitives import scaled_set_scaling
 
@@ -39,6 +40,11 @@ def promote_scale_types(*args: ScaledArray) -> Sequence[ScaledArray]:
 def scaled_stop_gradient(val: ScaledArray) -> ScaledArray:
     # Stop gradients on both data and scale tensors.
     return ScaledArray(lax.stop_gradient(val.data), lax.stop_gradient(val.scale))
+
+
+@core.register_scaled_lax_op
+def scaled_reshape(A: ScaledArray, new_sizes: Sequence[int], dimensions: Optional[Sequence[int]]) -> ScaledArray:
+    return ScaledArray(lax.reshape(A.data, new_sizes=new_sizes, dimensions=dimensions), A.scale)
 
 
 @core.register_scaled_lax_op
@@ -81,8 +87,19 @@ def scaled_transpose(A: ScaledArray, permutation: Sequence[int]) -> ScaledArray:
 
 
 @core.register_scaled_lax_op
-def scaled_mul(A: ScaledArray, B: ScaledArray) -> ScaledArray:
-    return ScaledArray(A.data * B.data, A.scale * B.scale)
+def scaled_neg(val: ScaledArray) -> ScaledArray:
+    return ScaledArray(-val.data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_mul(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    return ScaledArray(lhs.data * rhs.data, lhs.scale * rhs.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_div(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    # TODO: investigate different rule?
+    return ScaledArray(lhs.data / rhs.data, lhs.scale / rhs.scale)
 
 
 @core.register_scaled_lax_op
@@ -95,6 +112,10 @@ def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
     # check correct type output if mismatch between data and scale precision
     output_data = (A.scale / output_scale) * A.data + (B.scale / output_scale) * B.data
     return ScaledArray(output_data, output_scale)
+
+
+# TODO: understand difference between `add` and `add_anys`
+register_scaled_op(add_any_p, scaled_add)
 
 
 @core.register_scaled_lax_op
@@ -274,3 +295,13 @@ def scaled_cos(val: ScaledArray) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_sin(val: ScaledArray) -> ScaledArray:
     return scaled_op_default_translation(lax.sin_p, [val])
+
+
+@core.register_scaled_lax_op
+def scaled_min(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.min_p, [lhs, rhs])
+
+
+@core.register_scaled_lax_op
+def scaled_max(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    return scaled_op_default_translation(lax.max_p, [lhs, rhs])

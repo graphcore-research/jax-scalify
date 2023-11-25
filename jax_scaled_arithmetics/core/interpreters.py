@@ -199,7 +199,7 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
             )
         else:
             # Using scaled primitive. Automatic promotion of inputs to scaled array, when possible.
-            invals = map(promote_to_scaled_array, invals)
+            invals = list(map(promote_to_scaled_array, invals))
             outvals = scaled_prim_fn(*invals, **eqn.params)
 
         if not eqn.primitive.multiple_results:
