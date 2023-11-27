@@ -1,5 +1,13 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from .datatype import DTypeLike, ScaledArray, Shape, asarray, is_scaled_leaf, scaled_array  # noqa: F401
+from .datatype import (  # noqa: F401
+    DTypeLike,
+    ScaledArray,
+    Shape,
+    as_scaled_array,
+    asarray,
+    is_scaled_leaf,
+    scaled_array,
+)
 from .interpreters import (  # noqa: F401
     ScaledPrimitiveType,
     autoscale,

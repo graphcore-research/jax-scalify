@@ -1,6 +1,6 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from dataclasses import dataclass
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -87,6 +87,23 @@ class ScaledArray:
         return ShapedArray(self.data.shape, self.data.dtype)
 
 
+def is_scaled_leaf(val: Any) -> bool:
+    """Is input a JAX PyTree (scaled) leaf, including ScaledArray.
+
+    This function is useful for JAX PyTree handling where the user wants
+    to keep the ScaledArray datastructures (i.e. not flattened as a pair of arrays).
+    """
+    # TODO: check Numpy scalars as well?
+    return np.isscalar(val) or isinstance(val, (jax.Array, np.ndarray, ScaledArray))
+
+
+def scaled_array_base(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npapi: Any = jnp) -> ScaledArray:
+    """ScaledArray (helper) base factory method, similar to `(j)np.array`."""
+    data = npapi.asarray(data, dtype=dtype)
+    scale = npapi.asarray(scale)
+    return ScaledArray(data, scale)
+
+
 def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npapi: Any = jnp) -> ScaledArray:
     """ScaledArray (helper) factory method, similar to `(j)np.array`.
 
@@ -98,17 +115,35 @@ def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npa
     Returns:
         Scaled array instance.
     """
-    data = npapi.asarray(data, dtype=dtype)
-    scale = npapi.asarray(scale)
-    return ScaledArray(data, scale)
+    return scaled_array_base(data, scale, dtype, npapi)
 
 
-def asarray(val: Any, dtype: DTypeLike = None) -> GenericArray:
-    """Convert back to a common JAX/Numpy array.
+def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:
+    """ScaledArray (helper) base factory method, similar to `(j)np.array`."""
+    scale = np.array(1, dtype=val.dtype) if scale is None else scale
+    if isinstance(val, ScaledArray):
+        return val
+    elif isinstance(val, (np.ndarray, jax.Array)):
+        return ScaledArray(val, scale)
+    return scaled_array_base(val, scale)
+
+
+def as_scaled_array(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:
+    """ScaledArray (helper) factory method, similar to `(j)np.array`.
+
+    Compatible with JAX PyTree.
 
     Args:
-        dtype: Optional dtype of the final array.
+        val: Main data/values or existing ScaledArray.
+        scale: Optional scale to use when (potentially) converting.
+    Returns:
+        Scaled array instance.
     """
+    return jax.tree_map(lambda x: as_scaled_array_base(x, None), val, is_leaf=is_scaled_leaf)
+
+
+def asarray_base(val: Any, dtype: DTypeLike = None) -> GenericArray:
+    """Convert back to a common JAX/Numpy array, base function."""
     if isinstance(val, ScaledArray):
         return val.to_array(dtype=dtype)
     elif isinstance(val, (jax.Array, np.ndarray)):
@@ -119,11 +154,12 @@ def asarray(val: Any, dtype: DTypeLike = None) -> GenericArray:
     return np.asarray(val, dtype=dtype)
 
 
-def is_scaled_leaf(val: Any) -> bool:
-    """Is input a JAX PyTree (scaled) leaf, including ScaledArray.
+def asarray(val: Any, dtype: DTypeLike = None) -> GenericArray:
+    """Convert back to a common JAX/Numpy array.
 
-    This function is useful for JAX PyTree handling where the user wants
-    to keep the ScaledArray datastructures (i.e. not flattened as a pair of arrays).
+    Compatible with JAX PyTree.
+
+    Args:
+        dtype: Optional dtype of the final array.
     """
-    # TODO: check scalars as well?
-    return isinstance(val, (jax.Array, np.ndarray, ScaledArray, int, float))
+    return jax.tree_map(lambda x: asarray_base(x, dtype), val, is_leaf=is_scaled_leaf)
