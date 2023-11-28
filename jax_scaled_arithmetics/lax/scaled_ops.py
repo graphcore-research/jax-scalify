@@ -9,7 +9,7 @@ from jax import lax
 from jax._src.ad_util import add_any_p
 
 from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape, register_scaled_op
+from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape, as_scaled_array, register_scaled_op
 
 from .base_scaling_primitives import scaled_set_scaling
 
@@ -93,6 +93,8 @@ def scaled_neg(val: ScaledArray) -> ScaledArray:
 
 @core.register_scaled_lax_op
 def scaled_mul(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    # TODO: understand why/when this conversion kicks in?
+    lhs, rhs = as_scaled_array((lhs, rhs))  # type:ignore
     return ScaledArray(lhs.data * rhs.data, lhs.scale * rhs.scale)
 
 
