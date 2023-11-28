@@ -15,7 +15,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-  "chex",
+  "chex >= 0.1.6",
   "jax >= 0.3.16",
   "jaxlib >= 0.3.15",
   "numpy >= 1.22.4"

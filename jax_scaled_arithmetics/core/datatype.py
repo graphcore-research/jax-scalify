@@ -10,7 +10,9 @@ from jax.core import ShapedArray
 from jax.tree_util import register_pytree_node_class
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-GenericArray = Union[jax.Array, np.ndarray]
+from .typing import Array, ArrayTypes
+
+GenericArray = Union[Array, np.ndarray]
 
 
 @register_pytree_node_class
@@ -40,8 +42,8 @@ class ScaledArray:
     scale: GenericArray
 
     def __post_init__(self):
-        assert isinstance(self.data, (jax.Array, np.ndarray))
-        assert isinstance(self.scale, (jax.Array, np.ndarray, np.number))
+        assert isinstance(self.data, (*ArrayTypes, np.ndarray))
+        assert isinstance(self.scale, (*ArrayTypes, np.ndarray, np.number))
         # Only supporting scale scalar for now.
         assert self.scale.shape == ()
 
@@ -94,7 +96,7 @@ def is_scaled_leaf(val: Any) -> bool:
     to keep the ScaledArray datastructures (i.e. not flattened as a pair of arrays).
     """
     # TODO: check Numpy scalars as well?
-    return np.isscalar(val) or isinstance(val, (jax.Array, np.ndarray, ScaledArray))
+    return np.isscalar(val) or isinstance(val, (Array, np.ndarray, ScaledArray))
 
 
 def scaled_array_base(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npapi: Any = jnp) -> ScaledArray:
@@ -123,7 +125,7 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> ScaledA
     scale = np.array(1, dtype=val.dtype) if scale is None else scale
     if isinstance(val, ScaledArray):
         return val
-    elif isinstance(val, (np.ndarray, jax.Array)):
+    elif isinstance(val, (np.ndarray, Array)):
         return ScaledArray(val, scale)
     return scaled_array_base(val, scale)
 
@@ -146,7 +148,7 @@ def asarray_base(val: Any, dtype: DTypeLike = None) -> GenericArray:
     """Convert back to a common JAX/Numpy array, base function."""
     if isinstance(val, ScaledArray):
         return val.to_array(dtype=dtype)
-    elif isinstance(val, (jax.Array, np.ndarray)):
+    elif isinstance(val, (Array, np.ndarray)):
         if dtype is None:
             return val
         return val.astype(dtype=dtype)

@@ -15,4 +15,4 @@ from .interpreters import (  # noqa: F401
     register_scaled_lax_op,
     register_scaled_op,
 )
-from .typing import get_numpy_api  # noqa: F401
+from .typing import Array, ArrayTypes, get_numpy_api  # noqa: F401

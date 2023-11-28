@@ -48,7 +48,14 @@ jobs:
         run: |
           pip3 install -e ./
           pip3 install -r ./test-requirements.txt
-      # Run repository unit tests.
-      - name: Run unit tests
+      # Run repository unit tests on latest JAX
+      - name: Run unit tests JAX latest
+        run: |
+          pytest --tb=short -v --log-cli-level=INFO ./
+      - name: JAX 0.3.16 installation
+        run: |
+          pip3 install chex==0.1.6 jax==0.3.16 jaxlib==0.3.15 -f https://storage.googleapis.com/jax-releases/jax_releases.html
+      # Run repository unit tests on JAX 0.3
+      - name: Run unit tests JAX 0.3.16
         run: |
           pytest --tb=short -v --log-cli-level=INFO ./

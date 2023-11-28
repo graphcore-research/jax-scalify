@@ -1,13 +1,12 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import chex
-import jax
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 from jax.core import ShapedArray
 
-from jax_scaled_arithmetics.core import ScaledArray, as_scaled_array, asarray, is_scaled_leaf, scaled_array
+from jax_scaled_arithmetics.core import Array, ScaledArray, as_scaled_array, asarray, is_scaled_leaf, scaled_array
 
 
 class ScaledArrayDataclassTests(chex.TestCase):
@@ -135,6 +134,6 @@ class ScaledArrayDataclassTests(chex.TestCase):
         output = asarray(input)
         assert isinstance(output, dict)
         assert len(output) == 2
-        assert all([isinstance(v, jax.Array) for v in output.values()])
+        assert all([isinstance(v, Array) for v in output.values()])
         npt.assert_array_almost_equal(output["x"], input["x"])
         npt.assert_array_almost_equal(output["y"], input["y"])

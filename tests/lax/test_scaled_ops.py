@@ -1,12 +1,11 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import chex
-import jax
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 from jax import lax
 
-from jax_scaled_arithmetics.core import ScaledArray, find_registered_scaled_op, scaled_array
+from jax_scaled_arithmetics.core import Array, ScaledArray, find_registered_scaled_op, scaled_array
 from jax_scaled_arithmetics.lax import (
     scaled_add,
     scaled_broadcast_in_dim,
@@ -199,7 +198,7 @@ class ScaledTranslationBooleanPrimitivesTests(chex.TestCase):
     )
     def test__scaled_is_finite__proper_result(self, val, expected_out):
         out = scaled_is_finite(val)
-        assert isinstance(out, jax.Array)
+        assert isinstance(out, Array)
         assert out.dtype == np.bool_
         npt.assert_array_equal(out, expected_out)
 
@@ -217,7 +216,7 @@ class ScaledTranslationBooleanPrimitivesTests(chex.TestCase):
         scaled_bool_op, _ = find_registered_scaled_op(bool_prim)
         out0 = scaled_bool_op(lhs, rhs)
         out1 = scaled_bool_op(lhs, lhs)
-        assert isinstance(out0, jax.Array)
+        assert isinstance(out0, Array)
         assert out0.dtype == np.bool_
         npt.assert_array_equal(out0, bool_prim.bind(lhs.to_array(), rhs.to_array()))
         npt.assert_array_equal(out1, bool_prim.bind(lhs.to_array(), lhs.to_array()))

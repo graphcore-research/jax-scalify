@@ -8,6 +8,7 @@ import numpy.testing as npt
 from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import (
+    Array,
     ScaledArray,
     asarray,
     autoscale,
@@ -32,7 +33,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         data = np.array([1, 2], dtype=np.float32)
         out = func(data)
         # Proper behaviour!
-        assert isinstance(out, jax.Array)
+        assert isinstance(out, Array)
         npt.assert_array_equal(out, [2, 4])
         # Check jaxpr.
         jaxpr = jax.make_jaxpr(func)(data).jaxpr
@@ -65,7 +66,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         # One main jit equation.
         assert len(jaxpr.eqns) == 1
         eqn = jaxpr.eqns[0]
-        assert eqn.primitive.name == "pjit"
+        assert eqn.primitive.name in ("pjit", "xla_call")
         assert eqn.params["name"] == "myfunc"
         # TODO: other parameters.
         # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
@@ -125,7 +126,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         expected_output = self.variant(fn)(*raw_inputs)
 
         # Do we re-construct properly the output type (i.e. handling Pytree properly)?
-        if not isinstance(expected_output, (np.ndarray, jax.Array)):
+        if not isinstance(expected_output, (np.ndarray, Array)):
             assert type(scaled_output) is type(expected_output)
 
         # Check each output in the flatten tree.

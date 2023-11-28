@@ -1,12 +1,11 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import chex
-import jax
 import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
-from jax_scaled_arithmetics.core import ScaledArray, autoscale, scaled_array
+from jax_scaled_arithmetics.core import Array, ScaledArray, autoscale, scaled_array
 from jax_scaled_arithmetics.lax import set_scaling, stop_scaling
 
 
@@ -64,8 +63,8 @@ class StopScalingPrimitiveTests(chex.TestCase):
         fn = self.variant(autoscale(fn))
         arr = scaled_array([-1.0, 2.0], 3.0, dtype=np.float32)
         out0, out1 = fn(arr)
-        assert isinstance(out0, jax.Array)
-        assert isinstance(out1, jax.Array)
+        assert isinstance(out0, Array)
+        assert isinstance(out1, Array)
         assert out0.dtype == arr.dtype
         assert out1.dtype == np.float16
         npt.assert_array_equal(out0, arr)

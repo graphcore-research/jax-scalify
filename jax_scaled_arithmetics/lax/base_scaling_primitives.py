@@ -1,12 +1,11 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from typing import Optional, Sequence, Union
 
-import jax
 from jax import core
 from jax.interpreters import mlir
 from jax.interpreters.mlir import LoweringRuleContext, ir
 
-from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, ScaledPrimitiveType, asarray, register_scaled_op
+from jax_scaled_arithmetics.core import Array, DTypeLike, ScaledArray, ScaledPrimitiveType, asarray, register_scaled_op
 
 set_scaling_p = core.Primitive("set_scaling_p")
 """`set_scaling` JAX primitive.
@@ -19,12 +18,12 @@ return a ScaledArray semantically equivalent.
 """
 
 
-def set_scaling(values: jax.Array, scale: jax.Array) -> jax.Array:
+def set_scaling(values: Array, scale: Array) -> Array:
     """`set_scaling` primitive call method."""
     return set_scaling_p.bind(values, scale)
 
 
-def set_scaling_impl(values: jax.Array, scale: jax.Array) -> jax.Array:
+def set_scaling_impl(values: Array, scale: Array) -> Array:
     return values
 
 
@@ -73,12 +72,12 @@ Similar in principle to `jax.lax.stop_gradient`
 """
 
 
-def stop_scaling(values: jax.Array, dtype: Optional[DTypeLike] = None) -> jax.Array:
+def stop_scaling(values: Array, dtype: Optional[DTypeLike] = None) -> Array:
     """`stop_scaling` primitive call method."""
     return stop_scaling_p.bind(values, dtype=dtype)
 
 
-def stop_scaling_impl(values: jax.Array, dtype: Optional[DTypeLike]) -> jax.Array:
+def stop_scaling_impl(values: Array, dtype: Optional[DTypeLike]) -> Array:
     if dtype is not None:
         values = values.astype(dtype)
     return values
@@ -100,7 +99,7 @@ def stop_scaling_mlir_lowering(
     return (args[0],)
 
 
-def scaled_stop_scaling(values: ScaledArray, dtype: Optional[DTypeLike] = None) -> jax.Array:
+def scaled_stop_scaling(values: ScaledArray, dtype: Optional[DTypeLike] = None) -> Array:
     """Scaled `stop_scaling` implementation: returning tensor values (with optional cast)."""
     assert isinstance(values, ScaledArray)
     # TODO/FIXME: how to handle not scaled input?
