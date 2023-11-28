@@ -9,7 +9,7 @@ from jax import lax
 from jax._src.ad_util import add_any_p
 
 from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, Shape, as_scaled_array, register_scaled_op
+from jax_scaled_arithmetics.core import Array, DTypeLike, ScaledArray, Shape, as_scaled_array, register_scaled_op
 
 from .base_scaling_primitives import scaled_set_scaling
 
@@ -204,7 +204,7 @@ def scaled_reduce_min(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
 
 
 @core.register_scaled_lax_op
-def scaled_is_finite(val: ScaledArray) -> jax.Array:
+def scaled_is_finite(val: ScaledArray) -> Array:
     assert isinstance(val, ScaledArray)
     if np.issubdtype(val.scale.dtype, np.integer):
         # Integer scale case => only check the data component.
@@ -213,7 +213,7 @@ def scaled_is_finite(val: ScaledArray) -> jax.Array:
     return lax.and_p.bind(lax.is_finite(val.data), lax.is_finite(val.scale))
 
 
-def scaled_boolean_binary_op(lhs: ScaledArray, rhs: ScaledArray, prim: jax.core.Primitive) -> jax.Array:
+def scaled_boolean_binary_op(lhs: ScaledArray, rhs: ScaledArray, prim: jax.core.Primitive) -> Array:
     """Generic implementation of any boolean binary operation."""
     assert isinstance(lhs, ScaledArray)
     assert isinstance(rhs, ScaledArray)
@@ -223,32 +223,32 @@ def scaled_boolean_binary_op(lhs: ScaledArray, rhs: ScaledArray, prim: jax.core.
 
 
 @core.register_scaled_lax_op
-def scaled_eq(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+def scaled_eq(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.eq_p)
 
 
 @core.register_scaled_lax_op
-def scaled_ne(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+def scaled_ne(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.ne_p)
 
 
 @core.register_scaled_lax_op
-def scaled_gt(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+def scaled_gt(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.gt_p)
 
 
 @core.register_scaled_lax_op
-def scaled_ge(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+def scaled_ge(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.ge_p)
 
 
 @core.register_scaled_lax_op
-def scaled_lt(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+def scaled_lt(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.lt_p)
 
 
 @core.register_scaled_lax_op
-def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
+def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.le_p)
 
 
@@ -256,7 +256,7 @@ def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> jax.Array:
 # Default scaled ops implementation #
 ##################################################################
 def scaled_op_default_translation(
-    prim: jax.core.Primitive, args: Sequence[ScaledArray], outscale: Optional[jax.Array] = None
+    prim: jax.core.Primitive, args: Sequence[ScaledArray], outscale: Optional[Array] = None
 ) -> ScaledArray:
     """Scaled op default translation of a JAX primitive: unscaling inputs + calling normal primitive.
 
@@ -285,7 +285,7 @@ def scaled_log(val: ScaledArray) -> ScaledArray:
 
 
 @core.register_scaled_lax_op
-def scaled_select_n(which: jax.Array, *cases: ScaledArray) -> ScaledArray:
+def scaled_select_n(which: Array, *cases: ScaledArray) -> ScaledArray:
     return scaled_op_default_translation(lax.select_n_p, [which, *cases])
 
 

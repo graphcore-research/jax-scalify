@@ -6,8 +6,7 @@ from typing import Any, Dict, Sequence, Tuple
 import jax
 import numpy as np
 from jax import core
-from jax._src.custom_derivatives import custom_jvp_call_p, custom_vjp_call_p
-from jax._src.pjit import pjit_p
+from jax._src.custom_derivatives import custom_jvp_call_jaxpr_p, custom_jvp_call_p, custom_vjp_call_p
 from jax._src.util import safe_map
 
 from .datatype import NDArray, ScaledArray, is_scaled_leaf
@@ -233,7 +232,44 @@ def scaled_pjit_translation(*args: ScaledArray, **kwargs: Any) -> Sequence[Scale
     return outputs_scaled_flat
 
 
-register_scaled_op(pjit_p, scaled_pjit_translation)
+try:
+    from jax._src.pjit import pjit_p
+
+    register_scaled_op(pjit_p, scaled_pjit_translation)
+except (ImportError, ModuleNotFoundError):
+    pass
+
+
+def scaled_xla_call_translation(*args: ScaledArray, **kwargs: Any) -> Sequence[ScaledArray]:
+    """Scaled translation of `xla_call`. Basically re-running `autoscale` on sub-jaxpr.
+
+    Useful for JAX 0.3 compatibility
+    """
+    jaxpr = kwargs["call_jaxpr"]
+    name = kwargs["name"]
+    inline = kwargs["inline"]
+    keep_unused = kwargs["keep_unused"]
+    # TODO: properly adapt + pass these options.
+    # donated_invars = kwargs["donated_invars"]
+    # in_shardings = kwargs["in_shardings"]
+    # out_shardings = kwargs["out_shardings"]
+
+    assert len(jaxpr.constvars) == 0
+    # Generate the sub-scaled function, with proper `jax.jit` options.
+    subfunc = partial(autoscale_jaxpr, jaxpr, [])
+    subfunc.__name__ = name  # type:ignore
+    subfunc = jax.jit(subfunc, inline=inline, keep_unused=keep_unused)
+
+    outputs_scaled_flat = subfunc(*args)
+    return outputs_scaled_flat
+
+
+try:
+    from jax.interpreters.xla import xla_call_p
+
+    register_scaled_op(xla_call_p, scaled_xla_call_translation)
+except (ImportError, ModuleNotFoundError):
+    pass
 
 
 def scaled_custom_jvp_call_translation(*args: ScaledArray, **params: Any) -> Sequence[ScaledArray]:
@@ -241,13 +277,17 @@ def scaled_custom_jvp_call_translation(*args: ScaledArray, **params: Any) -> Seq
     and modifying the underlying `jvp` function.
     """
     # [fun, jvp], bind_params = custom_jvp_call_p.get_bind_params(params)
-    call_closed_jaxpr = params["call_jaxpr"]
+    key_jaxpr = "call_jaxpr" if jax.__version_info__[1] > 3 else "fun_jaxpr"
+    call_closed_jaxpr = params[key_jaxpr]
+    # JAX 0.3 compatibility.
+    assert params.get("num_consts", 0) == 0
     # FIXME: re-call the custom_jvp decorator/bind.
     call_subfunc = partial(autoscale_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
     return call_subfunc(*args)
 
 
 register_scaled_op(custom_jvp_call_p, scaled_custom_jvp_call_translation)
+register_scaled_op(custom_jvp_call_jaxpr_p, scaled_custom_jvp_call_translation)
 
 
 def scaled_custom_vjp_call_translation(*args: ScaledArray, **params: Any) -> Sequence[ScaledArray]:
