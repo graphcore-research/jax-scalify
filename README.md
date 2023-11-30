@@ -59,6 +59,7 @@ pip install jax==0.3.16+ipu jaxlib==0.3.15+ipu.sdk320 -f https://graphcore-resea
 ## Documentation
 
 * [Draft Scaled Arithmetics design document](docs/design.md);
+* [Scaled operators coverage](docs/operators.md)
 
 ## Development
 
