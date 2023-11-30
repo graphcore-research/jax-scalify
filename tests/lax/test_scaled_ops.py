@@ -20,6 +20,7 @@ from jax_scaled_arithmetics.lax import (
     scaled_min,
     scaled_mul,
     scaled_neg,
+    scaled_reduce_precision,
     scaled_reshape,
     scaled_select_n,
     scaled_slice,
@@ -69,6 +70,14 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert isinstance(z, ScaledArray)
         assert z.scale == x.scale
         npt.assert_array_almost_equal(z.data, x.data.T)
+
+    def test__scaled_reduce_precision__proper_result(self):
+        x = scaled_array(self.rs.rand(3, 5), 2, dtype=np.float16)
+        # Reduction to pseudo FP8 format.
+        z = scaled_reduce_precision(x, exponent_bits=4, mantissa_bits=3)
+        assert isinstance(z, ScaledArray)
+        assert z.scale == x.scale
+        npt.assert_array_almost_equal(z.data, lax.reduce_precision(x.data, exponent_bits=4, mantissa_bits=3))
 
     def test__scaled_neg__proper_scaling(self):
         x = scaled_array(self.rs.rand(3, 5), 2, dtype=np.float32)
