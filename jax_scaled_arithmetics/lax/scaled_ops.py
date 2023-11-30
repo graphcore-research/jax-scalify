@@ -61,6 +61,12 @@ def scaled_convert_element_type(A: ScaledArray, new_dtype: DTypeLike, weak_type:
 
 
 @core.register_scaled_lax_op
+def scaled_reduce_precision(A: ScaledArray, exponent_bits: int, mantissa_bits: int) -> ScaledArray:
+    # Applying precision reduction only data term.
+    return ScaledArray(lax.reduce_precision(A.data, exponent_bits=exponent_bits, mantissa_bits=mantissa_bits), A.scale)
+
+
+@core.register_scaled_lax_op
 def scaled_concatenate(operands: Sequence[ScaledArray], dimension: int) -> ScaledArray:
     # TODO: inputs checking (dtype and cie).
     scales = jnp.array([v.scale for v in operands])
