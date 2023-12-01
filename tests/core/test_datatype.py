@@ -86,28 +86,49 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert is_scaled_leaf(scaled_array(data=[1.0, 2.0], scale=3, dtype=np.float16))
 
     @parameterized.parameters(
-        {"data": np.array(2)},
-        {"data": np.array([1, 2])},
-        {"data": jnp.array([1, 2])},
+        {"data": np.array([1, 2.0])},
+        {"data": jnp.array([1, 2.0])},
     )
     def test__as_scaled_array__unchanged_dtype(self, data):
         output = as_scaled_array(data)
         assert isinstance(output, ScaledArray)
         assert isinstance(output.data, type(data))
-        assert output.dtype == data.dtype
+        assert output.dtype in {np.dtype(np.float32), np.dtype(np.float64)}
         npt.assert_array_almost_equal(output, data)
         npt.assert_array_equal(output.scale, np.array(1, dtype=data.dtype))
         # unvariant when calling a second time.
         assert as_scaled_array(output) is output
 
+    @parameterized.parameters(
+        {"data": 2.1},
+        {"data": np.float64(2.0)},
+        {"data": jnp.float32(2.0)},
+    )
+    def test__as_scaled_array__float_scalar(self, data):
+        output = as_scaled_array(data)
+        assert isinstance(output, ScaledArray)
+        assert output.data.dtype == output.scale.dtype
+        npt.assert_array_almost_equal(output.data, 1)
+        npt.assert_array_almost_equal(output.scale, data)
+
+    @parameterized.parameters(
+        {"data": False},
+        {"data": 2},
+        {"data": np.array([1, 2])},
+        {"data": jnp.array([1, 2])},
+    )
+    def test__as_scaled_array__unscaled_bool_int_output(self, data):
+        output = as_scaled_array(data)
+        assert output is data
+
     def test__as_scaled_array__complex_pytree(self):
-        input = {"x": jnp.array([1, 2]), "y": as_scaled_array(jnp.array([1, 2]))}
+        input = {"x": jnp.array([1, 2]), "y": jnp.array([1.0, 2]), "z": as_scaled_array(jnp.array([1.0, 2]))}
         output = as_scaled_array(input)
         assert isinstance(output, dict)
-        assert len(output) == 2
-        assert isinstance(output["x"], ScaledArray)
-        npt.assert_array_equal(output["x"], input["x"])
-        assert output["y"] is input["y"]
+        assert len(output) == 3
+        assert output["x"] is input["x"]
+        npt.assert_array_equal(output["y"], input["y"])
+        assert output["z"] is input["z"]
 
     @parameterized.parameters(
         {"data": np.array(2)},

@@ -120,18 +120,38 @@ def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npa
     return scaled_array_base(data, scale, dtype, npapi)
 
 
-def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:
+def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[Array, ScaledArray]:
     """ScaledArray (helper) base factory method, similar to `(j)np.array`."""
-    scale = np.array(1, dtype=val.dtype) if scale is None else scale
     if isinstance(val, ScaledArray):
         return val
-    elif isinstance(val, (np.ndarray, Array)):
+
+    # FIXME: support general case.
+    assert scale is None or np.float32(scale) == np.float32(1)  # type:ignore
+    # Trivial cases: bool, int, float.
+    if isinstance(val, (bool, int)):
+        return val
+    if isinstance(val, float):
+        return ScaledArray(np.array(1, dtype=np.float32), np.float32(val))
+
+    # Ignored dtypes by default: int and bool
+    ignored_dtype = np.issubdtype(val.dtype, np.integer) or np.issubdtype(val.dtype, np.bool_)
+    if ignored_dtype:
+        return val
+    # Floating point scalar
+    if val.ndim == 0:
+        return ScaledArray(np.array(1, dtype=val.dtype), val)
+
+    scale = np.array(1, dtype=val.dtype) if scale is None else scale
+    if isinstance(val, (np.ndarray, Array)):
         return ScaledArray(val, scale)
     return scaled_array_base(val, scale)
 
 
 def as_scaled_array(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:
     """ScaledArray (helper) factory method, similar to `(j)np.array`.
+
+    NOTE: by default, int and bool values/arrays will be returned unchanged, as
+    in most cases, there is no value representing these as scaled arrays.
 
     Compatible with JAX PyTree.
 
