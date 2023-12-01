@@ -9,7 +9,15 @@ from jax import lax
 from jax._src.ad_util import add_any_p
 
 from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import Array, DTypeLike, ScaledArray, Shape, as_scaled_array, register_scaled_op
+from jax_scaled_arithmetics.core import (
+    Array,
+    DTypeLike,
+    ScaledArray,
+    Shape,
+    as_scaled_array,
+    is_static_zero,
+    register_scaled_op,
+)
 
 from .base_scaling_primitives import scaled_set_scaling
 
@@ -100,8 +108,8 @@ def scaled_rev(val: ScaledArray, dimensions: Sequence[int]) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_pad(val: ScaledArray, padding_value: Any, padding_config: Any) -> ScaledArray:
     # Only supporting constant zero padding for now.
-    assert float(padding_value) == 0.0
-    return ScaledArray(lax.pad(val.data, padding_value, padding_config), val.scale)
+    assert np.all(is_static_zero(padding_value))
+    return ScaledArray(lax.pad(val.data, np.array(0, val.dtype), padding_config), val.scale)
 
 
 @core.register_scaled_lax_op
@@ -128,19 +136,23 @@ def scaled_abs(val: ScaledArray) -> ScaledArray:
 
 @core.register_scaled_lax_op
 def scaled_mul(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
-    # TODO: understand why/when this conversion kicks in?
+    # TODO: understand when promotion is really required?
     lhs, rhs = as_scaled_array((lhs, rhs))  # type:ignore
     return ScaledArray(lhs.data * rhs.data, lhs.scale * rhs.scale)
 
 
 @core.register_scaled_lax_op
 def scaled_div(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    # TODO: understand when promotion is really required?
+    lhs, rhs = as_scaled_array((lhs, rhs))  # type:ignore
     # TODO: investigate different rule?
     return ScaledArray(lhs.data / rhs.data, lhs.scale / rhs.scale)
 
 
 @core.register_scaled_lax_op
 def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
+    # TODO: understand when promotion is really required?
+    A, B = as_scaled_array((A, B))  # type:ignore
     check_scalar_scales(A, B)
     A, B = promote_scale_types(A, B)
     assert np.issubdtype(A.scale.dtype, np.floating)
