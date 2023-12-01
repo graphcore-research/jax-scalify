@@ -93,8 +93,37 @@ def scaled_transpose(A: ScaledArray, permutation: Sequence[int]) -> ScaledArray:
 
 
 @core.register_scaled_lax_op
+def scaled_rev(val: ScaledArray, dimensions: Sequence[int]) -> ScaledArray:
+    return ScaledArray(lax.rev(val.data, dimensions=dimensions), val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_pad(val: ScaledArray, padding_value: Any, padding_config: Any) -> ScaledArray:
+    # Only supporting constant zero padding for now.
+    assert float(padding_value) == 0.0
+    return ScaledArray(lax.pad(val.data, padding_value, padding_config), val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_argmax(val: ScaledArray, axis: int, index_dtype: DTypeLike) -> Array:
+    # Note: returning a normal `int` Array.
+    return lax.argmax(val.data, axis=axis, index_dtype=index_dtype)
+
+
+@core.register_scaled_lax_op
+def scaled_argmin(val: ScaledArray, axis: int, index_dtype: DTypeLike) -> Array:
+    # Note: returning a normal `int` Array.
+    return lax.argmin(val.data, axis=axis, index_dtype=index_dtype)
+
+
+@core.register_scaled_lax_op
 def scaled_neg(val: ScaledArray) -> ScaledArray:
     return ScaledArray(-val.data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_abs(val: ScaledArray) -> ScaledArray:
+    return ScaledArray(jax.lax.abs(val.data), val.scale)
 
 
 @core.register_scaled_lax_op
@@ -172,6 +201,15 @@ def scaled_dot_general(
 
 
 @core.register_scaled_lax_op
+def scaled_conv_general_dilated(lhs: ScaledArray, rhs: ScaledArray, **params) -> ScaledArray:
+    assert isinstance(lhs, ScaledArray)
+    assert isinstance(rhs, ScaledArray)
+    data = lax.conv_general_dilated_p.bind(lhs.data, rhs.data, **params)
+    # FIXME: should we change scaling if e.g. window > 3?
+    return ScaledArray(data, lhs.scale * rhs.scale)
+
+
+@core.register_scaled_lax_op
 def scaled_reduce_sum(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
     assert isinstance(val, ScaledArray)
     shape = val.shape
@@ -205,6 +243,72 @@ def scaled_reduce_max(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
 def scaled_reduce_min(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
     assert isinstance(val, ScaledArray)
     data = lax.reduce_min_p.bind(val.data, axes=axes)
+    # unchanged scaling.
+    return ScaledArray(data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_window_sum(
+    val: ScaledArray,
+    window_dimensions: Any,
+    window_strides: Any,
+    padding: Any,
+    base_dilation: Any,
+    window_dilation: Any,
+) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    data = lax.reduce_window_sum_p.bind(
+        val.data,
+        window_dimensions=window_dimensions,
+        window_strides=window_strides,
+        padding=padding,
+        base_dilation=base_dilation,
+        window_dilation=window_dilation,
+    )
+    # FIXME: should we change scaling if e.g. window > 3?
+    return ScaledArray(data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_window_min(
+    val: ScaledArray,
+    window_dimensions: Any,
+    window_strides: Any,
+    padding: Any,
+    base_dilation: Any,
+    window_dilation: Any,
+) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    data = lax.reduce_window_min_p.bind(
+        val.data,
+        window_dimensions=window_dimensions,
+        window_strides=window_strides,
+        padding=padding,
+        base_dilation=base_dilation,
+        window_dilation=window_dilation,
+    )
+    # unchanged scaling.
+    return ScaledArray(data, val.scale)
+
+
+@core.register_scaled_lax_op
+def scaled_reduce_window_max(
+    val: ScaledArray,
+    window_dimensions: Any,
+    window_strides: Any,
+    padding: Any,
+    base_dilation: Any,
+    window_dilation: Any,
+) -> ScaledArray:
+    assert isinstance(val, ScaledArray)
+    data = lax.reduce_window_max_p.bind(
+        val.data,
+        window_dimensions=window_dimensions,
+        window_strides=window_strides,
+        padding=padding,
+        base_dilation=base_dilation,
+        window_dilation=window_dilation,
+    )
     # unchanged scaling.
     return ScaledArray(data, val.scale)
 
