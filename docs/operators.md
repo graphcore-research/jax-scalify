@@ -6,13 +6,13 @@ Summary of JAX LAX operators supported in `autoscale` graph transformation.
 
 | Operation              | Supported          | Remarks |
 | ---------------------- | ------------------ |-------- |
-| `abs`                  | :x:                |         |
+| `abs`                  | :white_check_mark: |         |
 | `add`                  | :white_check_mark: |         |
 | `acos`                 | :x:                |         |
 | `approx_max_k`         | :x:                |         |
 | `approx_min_k`         | :x:                |         |
-| `argmax`               | :x:                |         |
-| `argmin`               | :x:                |         |
+| `argmax`               | :white_check_mark: |         |
+| `argmin`               | :white_check_mark: |         |
 | `asin`                 | :x:                |         |
 | `atan`                 | :x:                |         |
 | `atan2`                | :x:                |         |
@@ -35,10 +35,10 @@ Summary of JAX LAX operators supported in `autoscale` graph transformation.
 | `complex`              | :x:                |         |
 | `concatenate`          | :white_check_mark: |         |
 | `conj`                 | :x:                |         |
-| `conv`                 | :x:                |         |
+| `conv`                 | :white_check_mark: |         |
 | `convert_element_type` | :white_check_mark: |         |
-| `conv_general_dilated` | :x:                |         |
-| `conv_transpose`       | :x:                |         |
+| `conv_general_dilated` | :white_check_mark: |         |
+| `conv_transpose`       | :white_check_mark: |         |
 | `cos`                  | :white_check_mark: |         |
 | `cosh`                 | :x:                |         |
 | `cummax`               | :x:                |         |
@@ -84,16 +84,17 @@ Summary of JAX LAX operators supported in `autoscale` graph transformation.
 | `ne`                   | :white_check_mark: |         |
 | `neg`                  | :white_check_mark: |         |
 | `nextafter`            | :x:                |         |
-| `pad`                  | :x:                |         |
+| `pad`                  | :white_check_mark: |         |
 | `polygamma`            | :x:                |         |
 | `pow`                  | :x:                |         |
 | `real`                 | :x:                |         |
 | `reciprocal`           | :x:                |         |
 | `reduce`               | :white_check_mark: |         |
 | `reduce_precision`     | :white_check_mark: |         |
+| `reduce_window`        | :white_check_mark: |         |
 | `reshape`              | :white_check_mark: |         |
 | `rem`                  | :x:                |         |
-| `rev`                  | :x:                |         |
+| `rev`                  | :white_check_mark: |         |
 | `round`                | :x:                |         |
 | `rsqrt`                | :x:                |         |
 | `scatter`              | :x:                |         |
