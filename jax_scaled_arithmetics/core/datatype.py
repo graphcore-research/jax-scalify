@@ -168,7 +168,7 @@ def asarray_base(val: Any, dtype: DTypeLike = None) -> GenericArray:
     """Convert back to a common JAX/Numpy array, base function."""
     if isinstance(val, ScaledArray):
         return val.to_array(dtype=dtype)
-    elif isinstance(val, (Array, np.ndarray)):
+    elif isinstance(val, (*ArrayTypes, np.ndarray)):
         if dtype is None:
             return val
         return val.astype(dtype=dtype)

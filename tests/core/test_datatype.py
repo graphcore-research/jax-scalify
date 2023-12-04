@@ -138,13 +138,16 @@ class ScaledArrayDataclassTests(chex.TestCase):
         npt.assert_array_equal(output["y"], input["y"])
         assert output["z"] is input["z"]
 
+    @chex.variants(with_jit=True, without_jit=True)
     @parameterized.parameters(
-        {"data": np.array(2)},
-        {"data": np.array([1, 2])},
+        {"data": np.int32(3)},
+        {"data": np.array(2, dtype=np.int32)},
+        {"data": np.array([1, 2], dtype=np.int32)},
+        {"data": np.array([1, 2.0], dtype=np.float32)},
         {"data": jnp.array([1, 2])},
     )
     def test__asarray__unchanged_dtype(self, data):
-        output = asarray(data)
+        output = self.variant(asarray)(data)
         assert output.dtype == data.dtype
         npt.assert_array_almost_equal(output, data)
 

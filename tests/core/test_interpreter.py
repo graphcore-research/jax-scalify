@@ -172,14 +172,24 @@ class AutoScaleInterpreterTests(chex.TestCase):
         npt.assert_array_almost_equal(scaled_tangents, tangents)
 
     @parameterized.parameters(
-        {"input": np.array(3)},
-        {"input": jnp.array(3)},
-        {"input": 3},
         {"input": 3.0},
+        {"input": np.float32(3.0)},
+        {"input": np.array(3.0)},
+        {"input": jnp.array(3.0)},
     )
-    def test__promote_scalar_to_scaled_array__proper_output(self, input):
+    def test__promote_scalar_to_scaled_array__promoted_to_scaled_array(self, input):
         scaled_val = promote_scalar_to_scaled_array(input)
         assert isinstance(scaled_val, ScaledArray)
         assert scaled_val.data.dtype == scaled_val.scale.dtype
         npt.assert_array_equal(scaled_val.data, 1)
         npt.assert_array_equal(scaled_val.scale, input)
+
+    @parameterized.parameters(
+        {"input": np.array(3)},
+        {"input": jnp.array(3)},
+        {"input": 3},
+        {"input": np.int32(2)},
+    )
+    def test__promote_scalar_to_scaled_array__not_promoted_to_scaled_array(self, input):
+        out = promote_scalar_to_scaled_array(input)
+        assert out is input
