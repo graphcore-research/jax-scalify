@@ -185,3 +185,26 @@ def asarray(val: Any, dtype: DTypeLike = None) -> GenericArray:
         dtype: Optional dtype of the final array.
     """
     return jax.tree_map(lambda x: asarray_base(x, dtype), val, is_leaf=is_scaled_leaf)
+
+
+def is_numpy_scalar_or_array(val):
+    return isinstance(val, np.ndarray) or np.isscalar(val)
+
+
+def is_static_zero(val: Union[Array, ScaledArray]) -> Array:
+    """Is a scaled array a static zero value (i.e. zero during JAX tracing as well)?
+
+    Returns a boolean Numpy array of the shape of the input.
+    """
+    if is_numpy_scalar_or_array(val):
+        return np.equal(val, 0)
+    if isinstance(val, ScaledArray):
+        data_mask = (
+            np.equal(val.data, 0) if is_numpy_scalar_or_array(val.data) else np.zeros(val.data.shape, dtype=np.bool_)
+        )
+        scale_mask = (
+            np.equal(val.scale, 0) if is_numpy_scalar_or_array(val.scale) else np.zeros(val.scale.shape, dtype=np.bool_)
+        )
+        return np.logical_or(data_mask, scale_mask)
+    # By default: can't decide.
+    return np.zeros(val.shape, dtype=np.bool_)
