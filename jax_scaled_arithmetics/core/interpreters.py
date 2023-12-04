@@ -9,7 +9,7 @@ from jax import core
 from jax._src.custom_derivatives import custom_jvp_call_jaxpr_p, custom_jvp_call_p, custom_vjp_call_p
 from jax._src.util import safe_map
 
-from .datatype import NDArray, ScaledArray, is_scaled_leaf
+from .datatype import NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
 
 
 class ScaledPrimitiveType(IntEnum):
@@ -55,15 +55,8 @@ def promote_scalar_to_scaled_array(val: Any) -> ScaledArray:
 
     Note: needs to work with any input type, including JAX tracer ones.
     """
-    # int / float special cases
-    if isinstance(val, float):
-        return ScaledArray(data=np.array(1, dtype=np.float32), scale=np.float32(val))
-    elif isinstance(val, int):
-        return ScaledArray(data=np.array(1, dtype=np.int32), scale=np.int32(val))
-    # Just a Numpy constant for data => can be optimized out in XLA compiler.
-    assert val.shape == ()
-    onedata = np.array(1, dtype=val.dtype)
-    return ScaledArray(data=onedata, scale=val)
+    # Use `as_scaled_array` promotion rules.
+    return as_scaled_array_base(val)
 
 
 def numpy_constant_scaled_array(val: NDArray[Any]) -> ScaledArray:
