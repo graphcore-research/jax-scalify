@@ -9,7 +9,6 @@ from jax_scaled_arithmetics.core import Array, ScaledArray, find_registered_scal
 from jax_scaled_arithmetics.lax import (
     scaled_abs,
     scaled_add,
-    scaled_argmax,
     scaled_broadcast_in_dim,
     scaled_concatenate,
     scaled_convert_element_type,
@@ -105,12 +104,6 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert z.scale == x.scale
         npt.assert_array_almost_equal(z.data, -x.data)
 
-    def test__scaled_argmax__proper_scaling(self):
-        x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
-        z = scaled_argmax(x, 0, np.int32)
-        assert isinstance(z, Array)
-        npt.assert_array_equal(z, np.argmax(x.data))
-
     def test__scaled_abs__proper_scaling(self):
         x = scaled_array(self.rs.rand(3, 5), 2, dtype=np.float32)
         z = scaled_abs(x)
@@ -197,6 +190,15 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         z = scaled_max(x, y)
         assert isinstance(z, ScaledArray)
         npt.assert_array_almost_equal(z, np.maximum(x, y))
+
+    @parameterized.parameters({"prim": lax.argmax_p}, {"prim": lax.argmin_p})
+    def test__scaled_argminmax__proper_scaling(self, prim):
+        x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
+        expected_out = prim.bind(x.to_array(), axes=(0,), index_dtype=np.int32)
+        scaled_translation, _ = find_registered_scaled_op(prim)
+        out = scaled_translation(x, axes=(0,), index_dtype=np.int32)
+        assert isinstance(out, Array)
+        npt.assert_array_equal(out, expected_out)
 
 
 class ScaledTranslationReducePrimitivesTests(chex.TestCase):

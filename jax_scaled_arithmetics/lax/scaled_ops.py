@@ -105,15 +105,15 @@ def scaled_pad(val: ScaledArray, padding_value: Any, padding_config: Any) -> Sca
 
 
 @core.register_scaled_lax_op
-def scaled_argmax(val: ScaledArray, axis: int, index_dtype: DTypeLike) -> Array:
+def scaled_argmax(val: ScaledArray, axes: Sequence[int], index_dtype: DTypeLike) -> Array:
     # Note: returning a normal `int` Array.
-    return lax.argmax(val.data, axis=axis, index_dtype=index_dtype)
+    return lax.argmax_p.bind(val.data, axes=axes, index_dtype=index_dtype)
 
 
 @core.register_scaled_lax_op
-def scaled_argmin(val: ScaledArray, axis: int, index_dtype: DTypeLike) -> Array:
+def scaled_argmin(val: ScaledArray, axes: Sequence[int], index_dtype: DTypeLike) -> Array:
     # Note: returning a normal `int` Array.
-    return lax.argmin(val.data, axis=axis, index_dtype=index_dtype)
+    return lax.argmin_p.bind(val.data, axes=axes, index_dtype=index_dtype)
 
 
 @core.register_scaled_lax_op
