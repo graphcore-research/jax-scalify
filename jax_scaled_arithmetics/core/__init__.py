@@ -6,6 +6,7 @@ from .datatype import (  # noqa: F401
     as_scaled_array,
     asarray,
     is_scaled_leaf,
+    is_static_zero,
     scaled_array,
 )
 from .interpreters import (  # noqa: F401

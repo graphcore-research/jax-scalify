@@ -6,7 +6,15 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax.core import ShapedArray
 
-from jax_scaled_arithmetics.core import Array, ScaledArray, as_scaled_array, asarray, is_scaled_leaf, scaled_array
+from jax_scaled_arithmetics.core import (
+    Array,
+    ScaledArray,
+    as_scaled_array,
+    asarray,
+    is_scaled_leaf,
+    is_static_zero,
+    scaled_array,
+)
 
 
 class ScaledArrayDataclassTests(chex.TestCase):
@@ -158,3 +166,19 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert all([isinstance(v, Array) for v in output.values()])
         npt.assert_array_almost_equal(output["x"], input["x"])
         npt.assert_array_almost_equal(output["y"], input["y"])
+
+    @parameterized.parameters(
+        {"val": 0, "result": True},
+        {"val": 0.0, "result": True},
+        {"val": np.int32(0), "result": True},
+        {"val": np.float16(0), "result": True},
+        {"val": np.array([1, 2]), "result": False},
+        {"val": np.array([0, 0.0]), "result": True},
+        {"val": jnp.array([0, 0.0]), "result": False},
+        {"val": ScaledArray(np.array([0, 0.0]), jnp.array(2.0)), "result": True},
+        {"val": ScaledArray(jnp.array([3, 4.0]), np.array(0.0)), "result": True},
+        {"val": ScaledArray(jnp.array([3, 4.0]), jnp.array(0.0)), "result": False},
+    )
+    def test__is_static_zero__proper_all_result(self, val, result):
+        all_zero = np.all(is_static_zero(val))
+        assert all_zero == result
