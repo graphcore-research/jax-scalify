@@ -21,7 +21,9 @@ The primary aim here is simplicity and minimal dependencies.
 import time
 
 import datasets
+import jax
 import jax.numpy as jnp
+import numpy as np
 import numpy.random as npr
 from jax import grad, jit
 from jax.scipy.special import logsumexp
@@ -81,6 +83,7 @@ if __name__ == "__main__":
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray`
+    params = jax.tree_map(lambda v: v.astype(np.float16), params)
     params = jsa.as_scaled_array(params)
 
     @jit
@@ -93,6 +96,7 @@ if __name__ == "__main__":
         start_time = time.time()
         for _ in range(num_batches):
             batch = next(batches)
+            batch = jax.tree_map(lambda v: v.astype(np.float16), batch)
             batch = jsa.as_scaled_array(batch)
             params = update(params, batch)
         epoch_time = time.time() - start_time
