@@ -171,6 +171,42 @@ class AutoScaleInterpreterTests(chex.TestCase):
         npt.assert_array_almost_equal(scaled_primals, primals)
         npt.assert_array_almost_equal(scaled_tangents, tangents)
 
+    @chex.variants(with_jit=False, without_jit=True)
+    def test__autoscale_decorator__custom_vjp__proper_graph_transformation_and_result(self):
+        # JAX official `vjp` example.
+        @jax.custom_vjp
+        def f(x, y):
+            return jnp.sin(x) * y
+
+        def f_fwd(x, y):
+            return f(x, y), (jnp.cos(x), jnp.sin(x), y)
+
+        def f_bwd(res, g):
+            cos_x, sin_x, y = res
+            return (cos_x * g * y, sin_x * g)
+
+        f.defvjp(f_fwd, f_bwd)
+
+        def fn(x, y):
+            primals, f_vjp = jax.vjp(f, x, y)
+            return primals, f_vjp(x * y)
+
+        # `autoscale` on `custom_jvp` method.
+        scaled_inputs = (
+            scaled_array([-2.0, 0.5], 0.5, dtype=np.float32),
+            scaled_array([1.5, -4.5], 2, dtype=np.float32),
+        )
+        scaled_primals, scaled_grads = self.variant(autoscale(fn))(*scaled_inputs)
+        # JAX default/expected values
+        inputs = tuple(map(asarray, scaled_inputs))
+        primals, grads = self.variant(fn)(*inputs)
+
+        assert isinstance(scaled_primals, ScaledArray)
+        npt.assert_array_almost_equal(scaled_primals, primals)
+        for g, sg in zip(grads, scaled_grads):
+            assert isinstance(sg, ScaledArray)
+            npt.assert_array_almost_equal(sg, g)
+
     @parameterized.parameters(
         {"input": 3.0},
         {"input": np.float32(3.0)},
