@@ -31,16 +31,23 @@ from jax.scipy.special import logsumexp
 import jax_scaled_arithmetics as jsa
 
 
+@jax.custom_vjp
 def cast_fp8_fwd(v):
     fp8_dtype = (4, 3)
+    fp8_dtype = (5, 1)
+    # print("VAL DTYPE:", v.dtype)
     return jax.lax.reduce_precision(v, exponent_bits=fp8_dtype[0], mantissa_bits=fp8_dtype[1])
 
 
-# def f_fwd(x):
-#     return cast_fp8_fwd(x), ()
-# def f_bwd(res, g):
-#     return (g,)
-# cast_fp8_fwd.defvjp(f_fwd, f_bwd)
+def f_fwd(x):
+    return cast_fp8_fwd(x), ()
+
+
+def f_bwd(res, g):
+    return (g,)
+
+
+cast_fp8_fwd.defvjp(f_fwd, f_bwd)
 
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
@@ -52,7 +59,8 @@ def predict(params, inputs):
     for w, b in params[:-1]:
         # Floating point formats testing.
         # activations = cast_fp8_fwd(activations)
-        # w = cast_fp8_fwd(w)
+        # print("WEIGHTS CAST", w.dtype)
+        w = cast_fp8_fwd(w)
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
         activations = jnp.maximum(outputs, 0)
