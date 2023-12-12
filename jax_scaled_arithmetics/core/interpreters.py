@@ -6,7 +6,12 @@ from typing import Any, Dict, Sequence, Tuple
 import jax
 import numpy as np
 from jax import core
-from jax._src.custom_derivatives import custom_jvp_call_jaxpr_p, custom_jvp_call_p, custom_vjp_call_p
+from jax._src.custom_derivatives import (
+    custom_jvp_call_jaxpr_p,
+    custom_jvp_call_p,
+    custom_vjp_call_jaxpr_p,
+    custom_vjp_call_p,
+)
 from jax._src.util import safe_map
 
 from .datatype import NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
@@ -287,7 +292,12 @@ def scaled_custom_vjp_call_translation(*args: ScaledArray, **params: Any) -> Seq
     """Scaled translation of `custom_vjp_call` primitive. Forwarding the scaled call to sub-jaxpr,
     and modifying the underlying `vjp` function.
     """
-    raise NotImplementedError("Scaled custom VJP primitive not yet supported.")
+    key_jaxpr = "fun_jaxpr"
+    call_closed_jaxpr = params[key_jaxpr]
+    # FIXME: re-call the custom_vjp decorator/bind.
+    call_subfunc = partial(autoscale_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
+    return call_subfunc(*args)
 
 
 register_scaled_op(custom_vjp_call_p, scaled_custom_vjp_call_translation)
+register_scaled_op(custom_vjp_call_jaxpr_p, scaled_custom_vjp_call_translation)
