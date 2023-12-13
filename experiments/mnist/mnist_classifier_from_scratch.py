@@ -34,7 +34,7 @@ import jax_scaled_arithmetics as jsa
 @jax.custom_vjp
 def cast_fp8_fwd(v):
     fp8_dtype = (4, 3)
-    fp8_dtype = (5, 1)
+    # fp8_dtype = (5, 2)
     # print("VAL DTYPE:", v.dtype)
     return jax.lax.reduce_precision(v, exponent_bits=fp8_dtype[0], mantissa_bits=fp8_dtype[1])
 
@@ -59,8 +59,8 @@ def predict(params, inputs):
     for w, b in params[:-1]:
         # Floating point formats testing.
         # activations = cast_fp8_fwd(activations)
-        # print("WEIGHTS CAST", w.dtype)
-        w = cast_fp8_fwd(w)
+        print("WEIGHTS dtype", w.dtype)
+        # w = cast_fp8_fwd(w)
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
         activations = jnp.maximum(outputs, 0)
@@ -76,7 +76,9 @@ def loss(params, batch):
     return -jnp.mean(jnp.sum(preds * targets, axis=1))
 
 
+@jax.jit
 def accuracy(params, batch):
+    print("ACCURACY")
     inputs, targets = batch
     target_class = jnp.argmax(targets, axis=1)
     predicted_class = jnp.argmax(predict(params, inputs), axis=1)
@@ -86,6 +88,8 @@ def accuracy(params, batch):
 if __name__ == "__main__":
     layer_sizes = [784, 1024, 1024, 10]
     param_scale = 0.1
+    param_scale = 1.0
+
     step_size = 0.001
     num_epochs = 10
     batch_size = 128
@@ -108,6 +112,8 @@ if __name__ == "__main__":
     # Transform parameters to `ScaledArray`
     params = jax.tree_map(lambda v: v.astype(np.float16), params)
     params = jsa.as_scaled_array(params)
+
+    jax.tree_map(lambda v: print(v.shape, v.dtype, v.scale.dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
     @jsa.autoscale
