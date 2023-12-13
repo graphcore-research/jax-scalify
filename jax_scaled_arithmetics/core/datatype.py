@@ -67,6 +67,10 @@ class ScaledArray:
     def shape(self) -> Shape:
         return self.data.shape
 
+    @property
+    def size(self) -> int:
+        return self.data.size
+
     def to_array(self, dtype: DTypeLike = None) -> GenericArray:
         """Convert to the scaled array to a Numpy/JAX array.
 
@@ -208,3 +212,14 @@ def is_static_zero(val: Union[Array, ScaledArray]) -> Array:
         return np.logical_or(data_mask, scale_mask)
     # By default: can't decide.
     return np.zeros(val.shape, dtype=np.bool_)
+
+
+def is_static_one_scalar(val: Array) -> Union[bool, np.bool_]:
+    """Is a scaled array a static one scalar value (i.e. one during JAX tracing as well)?"""
+    if isinstance(val, (int, float)):
+        return val == 1
+    elif is_numpy_scalar_or_array(val) and val.size == 1:
+        return np.all(np.equal(val, 1))
+    elif isinstance(val, ScaledArray) and val.size == 1:
+        return is_static_one_scalar(val.data) and is_static_one_scalar(val.scale)
+    return False

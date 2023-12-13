@@ -5,7 +5,15 @@ from jax import core
 from jax.interpreters import mlir
 from jax.interpreters.mlir import LoweringRuleContext, ir
 
-from jax_scaled_arithmetics.core import Array, DTypeLike, ScaledArray, ScaledPrimitiveType, asarray, register_scaled_op
+from jax_scaled_arithmetics.core import (
+    Array,
+    DTypeLike,
+    ScaledArray,
+    ScaledPrimitiveType,
+    asarray,
+    is_static_one_scalar,
+    register_scaled_op,
+)
 
 set_scaling_p = core.Primitive("set_scaling_p")
 """`set_scaling` JAX primitive.
@@ -40,14 +48,19 @@ def set_scaling_mlir_lowering(
 
 def scaled_set_scaling(values: ScaledArray, scale: ScaledArray) -> ScaledArray:
     """Scaled `set_scaling` implementation: rebalancing the data using the new scale value."""
+    # Trivial case of scale == 1
+    if is_static_one_scalar(scale):
+        if isinstance(values, ScaledArray):
+            return values
+        return ScaledArray(values, scale)
     assert scale.shape == ()
     # Automatic promotion should ensure we always get a scaled scalar here!
     scale_value = asarray(scale)
     if not isinstance(values, ScaledArray):
         # Simple case, with no pre-existing scale.
-        return ScaledArray(values / scale_value, scale_value)
+        return ScaledArray(values / scale_value.astype(values.dtype), scale_value)
     # Rebalancing data tensor using the new scale.
-    data = values.data * (values.scale / scale_value)
+    data = values.data * (values.scale / scale_value).astype(values.dtype)
     return ScaledArray(data, scale_value)
 
 

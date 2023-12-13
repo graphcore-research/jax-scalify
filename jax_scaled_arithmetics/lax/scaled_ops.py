@@ -28,6 +28,14 @@ def check_scalar_scales(*args: ScaledArray):
         assert np.ndim(val.scale) == 0
 
 
+def promote_types(*args: DTypeLike) -> DTypeLike:
+    """Find a common promotion dtype."""
+    outdtype = args[0]
+    for val in args[1:]:
+        outdtype = jnp.promote_types(outdtype, val)
+    return outdtype
+
+
 def promote_scale_types(*args: ScaledArray) -> Sequence[ScaledArray]:
     """Promote scale datatypes to a common one.
 
@@ -80,8 +88,9 @@ def scaled_concatenate(operands: Sequence[ScaledArray], dimension: int) -> Scale
     scales = jnp.array([v.scale for v in operands])
     # Max rescaling of the collection of operands.
     # TODO: explore alternative strategies?
+    outdtype = operands[0].dtype
     scale_max = jnp.max(scales)
-    datas = [v.data * (v.scale / scale_max) for v in operands]
+    datas = [v.data * (v.scale / scale_max).astype(outdtype) for v in operands]
     data_concat = lax.concatenate(datas, dimension=dimension)
     return ScaledArray(data_concat, scale_max)
 
@@ -206,18 +215,18 @@ def scaled_dot_general(
 
     contracting_dim_size = lhs.shape[lhs_contracting_dims[0]]
     # "unit scaling" rule, based on the contracting axis.
-    contracting_rescale = np.sqrt(contracting_dim_size).astype(lhs.dtype)
-    output_scale = lhs.scale * rhs.scale * contracting_rescale
-    output_data = (
-        lax.dot_general(
-            lhs.data,
-            rhs.data,
-            dimension_numbers=dimension_numbers,
-            precision=precision,
-            preferred_element_type=preferred_element_type,
-        )
-        / contracting_rescale
+    outscale_dtype = jnp.promote_types(lhs.scale.dtype, rhs.scale.dtype)
+    contracting_rescale = np.sqrt(contracting_dim_size)
+    output_scale = lhs.scale * rhs.scale * contracting_rescale.astype(outscale_dtype)
+    # NOTE: need to be a bit careful about scale promotion?
+    output_data = lax.dot_general(
+        lhs.data,
+        rhs.data,
+        dimension_numbers=dimension_numbers,
+        precision=precision,
+        preferred_element_type=preferred_element_type,
     )
+    output_data = output_data / contracting_rescale.astype(output_data.dtype)
     return ScaledArray(output_data, output_scale)
 
 
@@ -237,8 +246,8 @@ def scaled_reduce_sum(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
     axes_size = np.array([shape[idx] for idx in axes])
     # Rescale data component following reduction axes.
     axes_rescale = np.sqrt(np.prod(axes_size))
-    data = lax.reduce_sum_p.bind(val.data, axes=axes) / axes_rescale
-    outscale = val.scale * axes_rescale
+    data = lax.reduce_sum_p.bind(val.data, axes=axes) / axes_rescale.astype(val.data.dtype)
+    outscale = val.scale * axes_rescale.astype(val.scale.dtype)
     return ScaledArray(data, outscale)
 
 
@@ -400,7 +409,8 @@ def scaled_op_default_translation(
     output = prim.bind(*inputs)
     # Rescale output, if necessary.
     if outscale is None:
-        return ScaledArray(output, np.array(1.0, dtype=output.dtype))
+        output_scale_dtype = promote_types(*[v.scale.dtype for v in args])
+        return ScaledArray(output, np.array(1.0, dtype=output_scale_dtype))
     output_scaled = scaled_set_scaling(output, outscale)
     return output_scaled
 
@@ -417,7 +427,9 @@ def scaled_log(val: ScaledArray) -> ScaledArray:
 
 @core.register_scaled_lax_op
 def scaled_select_n(which: Array, *cases: ScaledArray) -> ScaledArray:
-    return scaled_op_default_translation(lax.select_n_p, [which, *cases])
+    outscale_dtype = promote_types(*[v.scale.dtype for v in cases])
+    outscale = np.array(1, dtype=outscale_dtype)
+    return scaled_op_default_translation(lax.select_n_p, [which, *cases], outscale=outscale)
 
 
 @core.register_scaled_lax_op

@@ -6,7 +6,7 @@ import numpy.testing as npt
 from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import Array, ScaledArray, autoscale, scaled_array
-from jax_scaled_arithmetics.lax import set_scaling, stop_scaling
+from jax_scaled_arithmetics.lax.base_scaling_primitives import scaled_set_scaling, set_scaling, stop_scaling
 
 
 class SetScalingPrimitiveTests(chex.TestCase):
@@ -21,12 +21,14 @@ class SetScalingPrimitiveTests(chex.TestCase):
         out = fn(arr, scale)
         npt.assert_array_equal(out, arr)
 
-    @chex.variants(with_jit=True, without_jit=True)
+    @chex.variants(with_jit=True, without_jit=False)
     @parameterized.parameters(
         # Testing different combination of scaled/unscaled inputs.
         {"arr": np.array([-1.0, 2.0], dtype=np.float32), "scale": np.array(4.0, dtype=np.float32)},
-        {"arr": scaled_array([-1.0, 2.0], 1.0, dtype=np.float32), "scale": np.array(4.0, dtype=np.float32)},
-        {"arr": scaled_array([-1.0, 2.0], 1.0, dtype=np.float32), "scale": scaled_array(1.0, 4.0, dtype=np.float32)},
+        {"arr": np.array([-1.0, 2.0], dtype=np.float16), "scale": np.array(4.0, dtype=np.float32)},
+        {"arr": scaled_array([-1.0, 2.0], 1.0, dtype=np.float16), "scale": np.array(4.0, dtype=np.float32)},
+        {"arr": scaled_array([-1.0, 2.0], 2.0, dtype=np.float32), "scale": scaled_array(1.0, 4.0, dtype=np.float32)},
+        {"arr": scaled_array([-1.0, 2.0], 2.0, dtype=np.float16), "scale": scaled_array(1.0, 4.0, dtype=np.float32)},
     )
     def test__set_scaling_primitive__proper_result_with_autoscale(self, arr, scale):
         def fn(arr, scale):
@@ -34,10 +36,30 @@ class SetScalingPrimitiveTests(chex.TestCase):
 
         fn = self.variant(autoscale(fn))
         out = fn(arr, scale)
-        # Unchanged output tensor!
+        # Unchanged output tensor, with proper dtype.
         assert isinstance(out, ScaledArray)
+        assert out.dtype == arr.dtype
         npt.assert_array_equal(out.scale, scale)
         npt.assert_array_equal(out, arr)
+
+    @parameterized.parameters(
+        {"scale": 1},
+        {"scale": np.int32(1)},
+        {"scale": np.float32(1)},
+    )
+    def test__scaled_set_scaling__unchanged_scaled_array(self, scale):
+        val = scaled_array([-1.0, 2.0], 2.0, dtype=np.float16)
+        assert scaled_set_scaling(val, scale) is val
+
+    @parameterized.parameters(
+        {"scale": np.int32(1)},
+        {"scale": np.float32(1)},
+    )
+    def test__scaled_set_scaling__unchanged_data_scaled_array(self, scale):
+        val = np.array([-1.0, 2.0], dtype=np.float16)
+        out = scaled_set_scaling(val, scale)  # type:ignore
+        assert isinstance(out, ScaledArray)
+        assert out.data is val
 
 
 class StopScalingPrimitiveTests(chex.TestCase):

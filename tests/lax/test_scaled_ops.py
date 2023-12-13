@@ -7,19 +7,13 @@ from jax import lax
 
 from jax_scaled_arithmetics.core import Array, ScaledArray, find_registered_scaled_op, scaled_array
 from jax_scaled_arithmetics.lax import (
-    scaled_abs,
     scaled_broadcast_in_dim,
     scaled_concatenate,
     scaled_convert_element_type,
     scaled_div,
     scaled_dot_general,
-    scaled_exp,
     scaled_is_finite,
-    scaled_log,
-    scaled_max,
-    scaled_min,
     scaled_mul,
-    scaled_neg,
     scaled_pad,
     scaled_reduce_precision,
     scaled_reduce_window_sum,
@@ -52,12 +46,13 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         npt.assert_array_almost_equal(z.data, x.data.reshape((4, 2)))
 
     def test__scaled_concatenate__proper_scaling(self):
-        x = scaled_array(self.rs.rand(2, 3), 0.5, dtype=np.float32)
-        y = scaled_array(self.rs.rand(5, 3), 2, dtype=np.float32)
+        x = scaled_array(self.rs.rand(2, 3), 0.5, dtype=np.float16)
+        y = scaled_array(self.rs.rand(5, 3), 2, dtype=np.float16)
         z = scaled_concatenate([x, y], dimension=0)
         assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
         npt.assert_array_equal(z.scale, y.scale)
-        npt.assert_array_almost_equal(z, np.concatenate([x, y], axis=0))
+        npt.assert_array_almost_equal(z, lax.concatenate([np.asarray(x), np.asarray(y)], dimension=0))
 
     def test__scaled_convert_element_type__proper_scaling(self):
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
@@ -92,22 +87,9 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         # Reduction to pseudo FP8 format.
         z = scaled_reduce_precision(x, exponent_bits=4, mantissa_bits=3)
         assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
         assert z.scale == x.scale
         npt.assert_array_almost_equal(z.data, lax.reduce_precision(x.data, exponent_bits=4, mantissa_bits=3))
-
-    def test__scaled_neg__proper_scaling(self):
-        x = scaled_array(self.rs.rand(3, 5), 2, dtype=np.float32)
-        z = scaled_neg(x)
-        assert isinstance(z, ScaledArray)
-        assert z.scale == x.scale
-        npt.assert_array_almost_equal(z.data, -x.data)
-
-    def test__scaled_abs__proper_scaling(self):
-        x = scaled_array(self.rs.rand(3, 5), 2, dtype=np.float32)
-        z = scaled_abs(x)
-        assert isinstance(z, ScaledArray)
-        assert z.scale == x.scale
-        npt.assert_array_almost_equal(z.data, np.abs(x.data))
 
     def test__scaled_slice__proper_scaling(self):
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
@@ -115,61 +97,6 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert isinstance(z, ScaledArray)
         assert z.scale == x.scale
         npt.assert_array_almost_equal(z.data, x.data[1:4:2])
-
-    def test__scaled_mul__proper_scaling(self):
-        x = scaled_array([-2.0, 2.0], 3, dtype=np.float32)
-        y = scaled_array([1.5, 1.5], 2, dtype=np.float32)
-        z = scaled_mul(x, y)
-        assert isinstance(z, ScaledArray)
-        assert z.scale == 6
-        npt.assert_array_almost_equal(z, np.asarray(x) * np.asarray(y))
-
-    def test__scaled_div__proper_scaling(self):
-        x = scaled_array([-2.0, 2.0], 3.0, dtype=np.float32)
-        y = scaled_array([1.5, 1.5], 2.0, dtype=np.float32)
-        z = scaled_div(x, y)
-        assert isinstance(z, ScaledArray)
-        assert z.scale == 1.5
-        npt.assert_array_almost_equal(z, np.asarray(x) / np.asarray(y))
-
-    def test__scaled_dot_general__proper_scaling(self):
-        lhs = scaled_array(self.rs.rand(3, 5), 2.0, dtype=np.float32)
-        rhs = scaled_array(self.rs.rand(5, 2), 3.0, dtype=np.float32)
-        out = scaled_dot_general(lhs, rhs, (((1,), (0,)), ((), ())))
-        assert isinstance(out, ScaledArray)
-        assert out.dtype == lhs.dtype
-        npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * np.sqrt(5))
-        npt.assert_array_almost_equal(out, np.asarray(lhs) @ np.asarray(rhs))
-
-    def test__scaled_exp__proper_scaling(self):
-        val = scaled_array(self.rs.rand(3, 5), 2.0, dtype=np.float32)
-        out = scaled_exp(val)
-        assert isinstance(out, ScaledArray)
-        assert out.dtype == val.dtype
-        npt.assert_almost_equal(out.scale, 1)  # FIXME!
-        npt.assert_array_almost_equal(out, np.exp(val))
-
-    def test__scaled_log__proper_scaling(self):
-        val = scaled_array(self.rs.rand(3, 5), 2.0, dtype=np.float32)
-        out = scaled_log(val)
-        assert isinstance(out, ScaledArray)
-        assert out.dtype == val.dtype
-        npt.assert_almost_equal(out.scale, 1)  # FIXME!
-        npt.assert_array_almost_equal(out, np.log(val))
-
-    def test__scaled_min__proper_scaling(self):
-        x = scaled_array([-2.0, 2.0], 3, dtype=np.float32)
-        y = scaled_array([1.5, 1.5], 2, dtype=np.float32)
-        z = scaled_min(x, y)
-        assert isinstance(z, ScaledArray)
-        npt.assert_array_almost_equal(z, np.minimum(x, y))
-
-    def test__scaled_max__proper_scaling(self):
-        x = scaled_array([-2.0, 2.0], 3, dtype=np.float32)
-        y = scaled_array([1.5, 1.5], 2, dtype=np.float32)
-        z = scaled_max(x, y)
-        assert isinstance(z, ScaledArray)
-        npt.assert_array_almost_equal(z, np.maximum(x, y))
 
     @parameterized.parameters({"prim": lax.argmax_p}, {"prim": lax.argmin_p})
     def test__scaled_argminmax__proper_scaling(self, prim):
@@ -179,6 +106,52 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         out = scaled_translation(x, axes=(0,), index_dtype=np.int32)
         assert isinstance(out, Array)
         npt.assert_array_equal(out, expected_out)
+
+    @parameterized.parameters(
+        {"ldtype": np.float32, "rdtype": np.float32},
+        # {"ldtype": np.float32, "rdtype": np.float16}, # Not supported in JAX 0.3.x
+        # {"ldtype": np.float16, "rdtype": np.float32},
+        {"ldtype": np.float16, "rdtype": np.float16},
+    )
+    def test__scaled_dot_general__proper_scaling(self, ldtype, rdtype):
+        lhs = scaled_array(self.rs.rand(3, 5), 2.0, dtype=ldtype)
+        rhs = scaled_array(self.rs.rand(5, 2), 3.0, dtype=rdtype)
+
+        dimension_numbers = (((1,), (0,)), ((), ()))
+        out = scaled_dot_general(lhs, rhs, dimension_numbers)
+        expected_out = lax.dot_general(np.asarray(lhs), np.asarray(rhs), dimension_numbers)
+
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == expected_out.dtype
+        assert out.scale.dtype == np.float32  # TODO: more test coverage.
+        npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * np.sqrt(5))
+        npt.assert_array_almost_equal(out, expected_out, decimal=2)
+
+
+class ScaledTranslationUnaryOpsTests(chex.TestCase):
+    def setUp(self):
+        super().setUp()
+        # Use random state for reproducibility!
+        self.rs = np.random.RandomState(42)
+
+    @parameterized.parameters(
+        {"prim": lax.exp_p, "dtype": np.float16, "expected_scale": 1.0},  # FIXME!
+        {"prim": lax.log_p, "dtype": np.float16, "expected_scale": 1.0},  # FIXME!
+        {"prim": lax.neg_p, "dtype": np.float16, "expected_scale": 2.0},
+        {"prim": lax.abs_p, "dtype": np.float16, "expected_scale": 2.0},
+        {"prim": lax.cos_p, "dtype": np.float16, "expected_scale": 1.0},
+        {"prim": lax.sin_p, "dtype": np.float16, "expected_scale": 1.0},
+    )
+    def test__scaled_unary_op__proper_result_and_scaling(self, prim, dtype, expected_scale):
+        scaled_op, _ = find_registered_scaled_op(prim)
+        val = scaled_array(self.rs.rand(3, 5), 2.0, dtype=dtype)
+        out = scaled_op(val)
+        expected_output = prim.bind(np.asarray(val))
+        assert isinstance(out, ScaledArray)
+        assert out.dtype == val.dtype
+        assert out.scale.dtype == val.scale.dtype
+        npt.assert_almost_equal(out.scale, expected_scale)
+        npt.assert_array_almost_equal(out, expected_output)
 
 
 class ScaledTranslationBinaryOpsTests(chex.TestCase):
@@ -192,11 +165,15 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         {"prim": lax.sub_p, "dtype": np.float32},
         {"prim": lax.mul_p, "dtype": np.float32},
         {"prim": lax.div_p, "dtype": np.float32},
+        {"prim": lax.min_p, "dtype": np.float32},
+        {"prim": lax.max_p, "dtype": np.float32},
         # Make sure type promotion is right!
         {"prim": lax.add_p, "dtype": np.float16},
         {"prim": lax.sub_p, "dtype": np.float16},
         {"prim": lax.mul_p, "dtype": np.float16},
         {"prim": lax.div_p, "dtype": np.float16},
+        {"prim": lax.min_p, "dtype": np.float16},
+        {"prim": lax.max_p, "dtype": np.float16},
     )
     def test__scaled_binary_op__proper_result_and_promotion(self, prim, dtype):
         scaled_op, _ = find_registered_scaled_op(prim)
@@ -226,6 +203,22 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         assert z.dtype == x.dtype
         npt.assert_almost_equal(z.scale, np.sqrt(4.0 + 9.0))
 
+    def test__scaled_mul__proper_scaling(self):
+        x = scaled_array([-2.0, 2.0], 3, dtype=np.float32)
+        y = scaled_array([1.5, 1.5], 2, dtype=np.float32)
+        z = scaled_mul(x, y)
+        assert isinstance(z, ScaledArray)
+        assert z.scale == 6
+        npt.assert_array_almost_equal(z, np.asarray(x) * np.asarray(y))
+
+    def test__scaled_div__proper_scaling(self):
+        x = scaled_array([-2.0, 2.0], 3.0, dtype=np.float32)
+        y = scaled_array([1.5, 1.5], 2.0, dtype=np.float32)
+        z = scaled_div(x, y)
+        assert isinstance(z, ScaledArray)
+        assert z.scale == 1.5
+        npt.assert_array_almost_equal(z, np.asarray(x) / np.asarray(y))
+
 
 class ScaledTranslationReducePrimitivesTests(chex.TestCase):
     def setUp(self):
@@ -241,7 +234,8 @@ class ScaledTranslationReducePrimitivesTests(chex.TestCase):
     )
     def test__scaled_reduce__single_axis__proper_scaling(self, reduce_prim, expected_scale):
         axes = (0,)
-        val = scaled_array(self.rs.rand(5), 2.0, dtype=np.float32)
+        # NOTE: float16 useful for checking dtype promotion!
+        val = scaled_array(self.rs.rand(5), 2.0, dtype=np.float16)
         scaled_reduce_op, _ = find_registered_scaled_op(reduce_prim)
         out = scaled_reduce_op(val, axes=axes)
 
