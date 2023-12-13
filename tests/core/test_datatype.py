@@ -12,6 +12,7 @@ from jax_scaled_arithmetics.core import (
     as_scaled_array,
     asarray,
     is_scaled_leaf,
+    is_static_one_scalar,
     is_static_zero,
     scaled_array,
 )
@@ -38,6 +39,22 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert isinstance(sarr.data, npapi.ndarray)
         assert isinstance(sarr.scale, npapi.ndarray)
         assert sarr.data.dtype == ShapedArray((2,), np.float16)
+        assert sarr.scale.shape == ()
+        npt.assert_array_almost_equal(sarr, [3, 6])
+
+    @parameterized.parameters(
+        {"dtype": np.float16},
+        {"dtype": np.float32},
+    )
+    def test__scaled_array__factory_method__multi_dtypes(self, dtype):
+        sarr = scaled_array(data=[1.0, 2.0], scale=3.0, dtype=dtype, npapi=jnp)
+        assert isinstance(sarr, ScaledArray)
+        assert isinstance(sarr.data, jnp.ndarray)
+        assert isinstance(sarr.scale, jnp.ndarray)
+        assert sarr.data.dtype == ShapedArray((2,), dtype=dtype)
+        # Default scale dtype is always FP32.
+        # TODO: what happens when integer scale is passed?
+        assert sarr.scale.dtype == np.float32
         assert sarr.scale.shape == ()
         npt.assert_array_almost_equal(sarr, [3, 6])
 
@@ -185,3 +202,27 @@ class ScaledArrayDataclassTests(chex.TestCase):
     def test__is_static_zero__proper_all_result(self, val, result):
         all_zero = np.all(is_static_zero(val))
         assert all_zero == result
+
+    @parameterized.parameters(
+        {"val": 0, "result": False},
+        {"val": 1, "result": True},
+        {"val": 1.0, "result": True},
+        {"val": np.int32(1), "result": True},
+        {"val": np.float16(1), "result": True},
+        {"val": np.float32(1), "result": True},
+        {"val": np.array([1]), "result": True},
+        {"val": np.array([1]), "result": True},
+        {"val": np.array([1, 1]), "result": False},
+        {"val": jnp.array([1, 1]), "result": False},
+        {"val": ScaledArray(np.array([1]), np.array(1.0)), "result": True},
+        {"val": ScaledArray(np.array(1.0), np.array(1)), "result": True},
+        {"val": ScaledArray(np.array([1]), np.array(2.0)), "result": False},
+    )
+    def test__is_static_one_scalar__proper_result(self, val, result):
+        r = is_static_one_scalar(val)
+        assert isinstance(r, (bool, np.bool_))
+        assert r == result
+        # Should still be valid when we use `asarray` as well.
+        r = is_static_one_scalar(asarray(val))
+        assert isinstance(r, (bool, np.bool_))
+        assert r == result
