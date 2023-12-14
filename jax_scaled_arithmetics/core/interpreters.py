@@ -47,6 +47,12 @@ def get_autoscale_config() -> AutoScaleConfig:
     return _autoscale_config_stack[-1]
 
 
+def get_scale_dtype(val: Any) -> Any:
+    if isinstance(val, ScaledArray):
+        return val.scale.dtype
+    return val.dtype
+
+
 class ScaledPrimitiveType(IntEnum):
     """Scale (JAX) primitive type.
 
@@ -220,6 +226,8 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
             # Using normal JAX primitive: no scaled inputs, and not always scale rule.
             subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
             outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
+            if not eqn.primitive.multiple_results:
+                outvals = [outvals]
         elif scaled_prim_fn is None:
             raise NotImplementedError(
                 f"'{eqn.primitive}' JAX primitive does not have an implementation for ScaledArray inputs yet."
@@ -228,9 +236,13 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
             # Using scaled primitive. Automatic promotion of inputs to scaled array, when possible.
             invals = list(map(promote_to_scaled_array, invals))
             outvals = scaled_prim_fn(*invals, **eqn.params)
+            if not eqn.primitive.multiple_results:
+                outvals = [outvals]
+            print("SCALED:", eqn.primitive, [(v.dtype, get_scale_dtype(v)) for v in invals], [(v.dtype, get_scale_dtype(v)) for v in outvals])
 
-        if not eqn.primitive.multiple_results:
-            outvals = [outvals]
+
+        # if not eqn.primitive.multiple_results:
+        #     outvals = [outvals]
         safe_map(write, eqn.outvars, outvals)
 
     outvals = safe_map(read, jaxpr.outvars)

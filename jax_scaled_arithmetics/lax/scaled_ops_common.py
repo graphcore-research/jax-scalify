@@ -35,6 +35,12 @@ def promote_types(*args: DTypeLike) -> DTypeLike:
     return outdtype
 
 
+def get_scale_dtype(val: Any) -> DTypeLike:
+    if isinstance(val, ScaledArray):
+        return val.scale.dtype
+    return val.dtype
+
+
 def promote_scale_types(*args: ScaledArray) -> Sequence[ScaledArray]:
     """Promote scale datatypes to a common one.
 
