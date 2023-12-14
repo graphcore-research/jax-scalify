@@ -134,6 +134,7 @@ class ScaledTranslationUnaryOpsTests(chex.TestCase):
         # Use random state for reproducibility!
         self.rs = np.random.RandomState(42)
 
+    @chex.variants(with_jit=True, without_jit=True)
     @parameterized.parameters(
         {"prim": lax.exp_p, "dtype": np.float16, "expected_scale": 1.0},  # FIXME!
         {"prim": lax.log_p, "dtype": np.float16, "expected_scale": 1.0},  # FIXME!
@@ -145,7 +146,7 @@ class ScaledTranslationUnaryOpsTests(chex.TestCase):
     def test__scaled_unary_op__proper_result_and_scaling(self, prim, dtype, expected_scale):
         scaled_op, _ = find_registered_scaled_op(prim)
         val = scaled_array(self.rs.rand(3, 5), 2.0, dtype=dtype)
-        out = scaled_op(val)
+        out = self.variant(scaled_op)(val)
         expected_output = prim.bind(np.asarray(val))
         assert isinstance(out, ScaledArray)
         assert out.dtype == val.dtype
@@ -160,35 +161,27 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         # Use random state for reproducibility!
         self.rs = np.random.RandomState(42)
 
-    @parameterized.parameters(
-        {"prim": lax.add_p, "dtype": np.float32},
-        {"prim": lax.sub_p, "dtype": np.float32},
-        {"prim": lax.mul_p, "dtype": np.float32},
-        {"prim": lax.div_p, "dtype": np.float32},
-        {"prim": lax.min_p, "dtype": np.float32},
-        {"prim": lax.max_p, "dtype": np.float32},
-        # Make sure type promotion is right!
-        {"prim": lax.add_p, "dtype": np.float16},
-        {"prim": lax.sub_p, "dtype": np.float16},
-        {"prim": lax.mul_p, "dtype": np.float16},
-        {"prim": lax.div_p, "dtype": np.float16},
-        {"prim": lax.min_p, "dtype": np.float16},
-        {"prim": lax.max_p, "dtype": np.float16},
+    @chex.variants(with_jit=True, without_jit=True)
+    @parameterized.product(
+        prim=[lax.add_p, lax.sub_p, lax.mul_p, lax.div_p, lax.min_p, lax.max_p],
+        dtype=[np.float16, np.float32],
+        sdtype=[np.float16, np.float32],
     )
-    def test__scaled_binary_op__proper_result_and_promotion(self, prim, dtype):
+    def test__scaled_binary_op__proper_result_and_promotion(self, prim, dtype, sdtype):
         scaled_op, _ = find_registered_scaled_op(prim)
-        x = scaled_array([-1.0, 2.0], 3.0, dtype=dtype)
-        y = scaled_array([1.5, 4.5], 2.0, dtype=dtype)
-        # Always use float32 for scale factor.
-        assert x.scale.dtype == np.float32
-        assert y.scale.dtype == np.float32
+        # NOTE: direct construction to avoid weirdity between NumPy array and scalar!
+        x = ScaledArray(np.array([-1.0, 2.0], dtype), sdtype(3.0))
+        y = ScaledArray(np.array([1.5, 4.5], dtype), sdtype(2.0))
+        # Ensure scale factor has the right dtype.
+        assert x.scale.dtype == sdtype
+        assert y.scale.dtype == sdtype
 
-        z = scaled_op(x, y)
+        z = self.variant(scaled_op)(x, y)
         expected_z = prim.bind(np.asarray(x), np.asarray(y))
 
         assert z.dtype == x.dtype
-        assert z.scale.dtype == x.scale.dtype
-        npt.assert_array_almost_equal(z, expected_z, decimal=5)
+        assert z.scale.dtype == sdtype
+        npt.assert_array_almost_equal(z, expected_z, decimal=3)
 
     @parameterized.parameters(
         {"prim": lax.add_p},
