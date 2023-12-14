@@ -166,7 +166,7 @@ def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
     A, B = promote_scale_types(A, B)
     assert np.issubdtype(A.scale.dtype, np.floating)
     # TODO: what happens to `sqrt` for non-floating scale?
-    output_scale = lax.sqrt(A.scale**2 + B.scale**2)
+    output_scale = lax.sqrt(A.scale * A.scale + B.scale * B.scale)
     # Output dtype => promotion of A and B dtypes.
     outdtype = jnp.promote_types(A.dtype, B.dtype)
     Arescale = (A.scale / output_scale).astype(outdtype)
@@ -188,7 +188,7 @@ def scaled_sub(A: ScaledArray, B: ScaledArray) -> ScaledArray:
     A, B = promote_scale_types(A, B)
     assert np.issubdtype(A.scale.dtype, np.floating)
     # TODO: what happens to `sqrt` for non-floating scale?
-    output_scale = lax.sqrt(A.scale**2 + B.scale**2)
+    output_scale = lax.sqrt(A.scale * A.scale + B.scale * B.scale)
     # Output dtype => promotion of A and B dtypes.
     outdtype = jnp.promote_types(A.dtype, B.dtype)
     Arescale = (A.scale / output_scale).astype(outdtype)

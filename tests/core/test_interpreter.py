@@ -171,7 +171,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         npt.assert_array_almost_equal(scaled_primals, primals)
         npt.assert_array_almost_equal(scaled_tangents, tangents)
 
-    @chex.variants(with_jit=False, without_jit=True)
+    @chex.variants(with_jit=True, without_jit=True)
     def test__autoscale_decorator__custom_vjp__proper_graph_transformation_and_result(self):
         # JAX official `vjp` example.
         @jax.custom_vjp
