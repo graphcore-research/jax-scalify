@@ -59,7 +59,7 @@ def predict(params, inputs):
     for w, b in params[:-1]:
         # Floating point formats testing.
         # activations = cast_fp8_fwd(activations)
-        print("WEIGHTS dtype", w.dtype)
+        # print("WEIGHTS dtype", w.dtype)s
         # w = cast_fp8_fwd(w)
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
@@ -113,24 +113,31 @@ if __name__ == "__main__":
     params = jax.tree_map(lambda v: v.astype(np.float16), params)
     params = jsa.as_scaled_array(params)
 
-    jax.tree_map(lambda v: print(v.shape, v.dtype, v.scale.dtype), params, is_leaf=jsa.core.is_scaled_leaf)
+    # jax.tree_map(lambda v: print(v.shape, v.dtype, v.scale.dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
-    @jit
+    # @jit
     @jsa.autoscale
     def update(params, batch):
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
+
+    num_batches = 1
+    num_epochs = 1
 
     for epoch in range(num_epochs):
         start_time = time.time()
         for _ in range(num_batches):
             batch = next(batches)
             batch = jax.tree_map(lambda v: v.astype(np.float16), batch)
+            # print("MINMAX:", np.min(batch[1]), np.max(batch[1]))
             batch = jsa.as_scaled_array(batch)
             params = update(params, batch)
+
+            print(params)
+
         epoch_time = time.time() - start_time
 
-        raw_params = jsa.asarray(params)
+        raw_params = jsa.asarray(params, dtype=np.float32)
         train_acc = accuracy(raw_params, (train_images, train_labels))
         test_acc = accuracy(raw_params, (test_images, test_labels))
         print(f"Epoch {epoch} in {epoch_time:0.2f} sec")
