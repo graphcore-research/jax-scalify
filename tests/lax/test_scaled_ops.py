@@ -5,7 +5,14 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax import lax
 
-from jax_scaled_arithmetics.core import Array, ScaledArray, find_registered_scaled_op, scaled_array
+from jax_scaled_arithmetics.core import (
+    Array,
+    ScaledArray,
+    autoscale,
+    debug_callback,
+    find_registered_scaled_op,
+    scaled_array,
+)
 from jax_scaled_arithmetics.lax import (
     scaled_broadcast_in_dim,
     scaled_concatenate,
@@ -30,6 +37,29 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         super().setUp()
         # Use random state for reproducibility!
         self.rs = np.random.RandomState(42)
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test__scaled_debug_callback__proper_forwarding(self):
+        host_values = []
+
+        def callback(*args):
+            for v in args:
+                host_values.append(v)
+
+        def fn(a):
+            debug_callback(callback, a, a * 3)
+            return a
+
+        x = scaled_array(self.rs.rand(5), 2, dtype=np.float16)
+        fn = self.variant(autoscale(fn))
+        fn(x)
+
+        assert len(host_values) == 2
+        for sv in host_values:
+            assert isinstance(sv, ScaledArray)
+            npt.assert_array_equal(sv.data, x.data)
+        npt.assert_array_equal(host_values[0].scale, x.scale)
+        npt.assert_array_equal(host_values[1].scale, x.scale * 3)
 
     def test__scaled_broadcast_in_dim__proper_scaling(self):
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
