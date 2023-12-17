@@ -10,6 +10,7 @@ from .datatype import (  # noqa: F401
     is_static_zero,
     scaled_array,
 )
+from .debug import debug_callback  # noqa: F401
 from .interpreters import (  # noqa: F401
     ScaledPrimitiveType,
     autoscale,
