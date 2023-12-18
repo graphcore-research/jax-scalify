@@ -58,6 +58,23 @@ def debug_print(prefix, v):
     jsa.debug_callback(lambda v: print(f"{prefix}: {v}"), v)
 
 
+@jax.custom_vjp
+def debug_print_grad(x):
+    return x
+
+
+def debug_print_grad_fwd(x):
+    return x, None
+
+
+def debug_print_grad_bwd(_, x_grad):
+    debug_print("Grad", x_grad)
+    return (x_grad,)
+
+
+debug_print_grad.defvjp(debug_print_grad_fwd, debug_print_grad_bwd)
+
+
 def predict(params, inputs):
     activations = inputs
     for idx, (w, b) in enumerate(params[:-1]):
@@ -67,10 +84,13 @@ def predict(params, inputs):
         # w = cast_fp8_fwd(w)
 
         debug_print(f"BIAS {idx}", b)
+        b = debug_print_grad(b)
 
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
+        outputs = debug_print_grad(outputs)
         activations = jnp.maximum(outputs, 0)
+        activations = debug_print_grad(activations)
 
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
@@ -140,7 +160,7 @@ if __name__ == "__main__":
             batch = jsa.as_scaled_array(batch)
             params = update(params, batch)
 
-            print(params)
+            # print(params)
 
         epoch_time = time.time() - start_time
 
