@@ -54,13 +54,20 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
     return [(scale * rng.randn(m, n), scale * rng.randn(n)) for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])]
 
 
+def debug_print(prefix, v):
+    jsa.debug_callback(lambda v: print(f"{prefix}: {v}"), v)
+
+
 def predict(params, inputs):
     activations = inputs
-    for w, b in params[:-1]:
+    for idx, (w, b) in enumerate(params[:-1]):
         # Floating point formats testing.
         # activations = cast_fp8_fwd(activations)
         # print("WEIGHTS dtype", w.dtype)s
         # w = cast_fp8_fwd(w)
+
+        debug_print(f"BIAS {idx}", b)
+
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
         activations = jnp.maximum(outputs, 0)
@@ -137,9 +144,9 @@ if __name__ == "__main__":
 
         epoch_time = time.time() - start_time
 
-        raw_params = jsa.asarray(params, dtype=np.float32)
-        train_acc = accuracy(raw_params, (train_images, train_labels))
-        test_acc = accuracy(raw_params, (test_images, test_labels))
+        # raw_params = jsa.asarray(params, dtype=np.float32)
+        # train_acc = accuracy(raw_params, (train_images, train_labels))
+        # test_acc = accuracy(raw_params, (test_images, test_labels))
         print(f"Epoch {epoch} in {epoch_time:0.2f} sec")
-        print(f"Training set accuracy {train_acc}")
-        print(f"Test set accuracy {test_acc}")
+        # print(f"Training set accuracy {train_acc}")
+        # print(f"Test set accuracy {test_acc}")

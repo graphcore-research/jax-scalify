@@ -238,8 +238,7 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
             outvals = scaled_prim_fn(*invals, **eqn.params)
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
-            print("SCALED:", eqn.primitive, [(v.dtype, get_scale_dtype(v)) for v in invals], [(v.dtype, get_scale_dtype(v)) for v in outvals])
-
+            # print("SCALED:", eqn.primitive, [(v.dtype, get_scale_dtype(v)) for v in invals], [(v.dtype, get_scale_dtype(v)) for v in outvals])
 
         # if not eqn.primitive.multiple_results:
         #     outvals = [outvals]
