@@ -18,6 +18,9 @@ from jax_scaled_arithmetics.core import (
 
 from .scaled_ops_common import check_scalar_scales, promote_scale_types
 
+# global scaled_count
+scaled_count = {}
+
 
 def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArray:
     """Scaled add/sub generic implementation."""
@@ -28,6 +31,18 @@ def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArra
     assert np.issubdtype(A.scale.dtype, np.floating)
     # Pow2 rounding for unit scaling "rule".
     pow2_rounding_mode = get_autoscale_config().rounding_mode
+
+    scaled_count[binary_op] = scaled_count.get(binary_op, 0) + 1
+
+    if binary_op is lax.add and scaled_count[binary_op] <= 1:
+        print("ADD:", scaled_count[binary_op], A, B)
+        outdtype = jnp.promote_types(A.dtype, B.dtype)
+        output_scale = np.array(32, dtype=A.scale.dtype)
+        Arescale = (A.scale / output_scale).astype(outdtype)
+        Brescale = (B.scale / output_scale).astype(outdtype)
+        output_data = binary_op(Arescale * A.data, Brescale * B.data)
+        return ScaledArray(output_data, output_scale)
+
     # TODO: what happens to `sqrt` for non-floating scale?
     # More stable than direct L2 norm, to avoid scale overflow.
     ABscale_max = lax.max(A.scale, B.scale)
@@ -36,6 +51,7 @@ def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArra
     output_scale = ABscale_max * lax.sqrt(1 + ABscale_ratio * ABscale_ratio)
     # Transform back to power-of-2
     output_scale = pow2_round(output_scale, pow2_rounding_mode)
+    # output_scale = ABscale_max
     # Output dtype => promotion of A and B dtypes.
     outdtype = jnp.promote_types(A.dtype, B.dtype)
     Arescale = (A.scale / output_scale).astype(outdtype)

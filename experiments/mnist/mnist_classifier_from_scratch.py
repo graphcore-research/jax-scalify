@@ -142,14 +142,14 @@ if __name__ == "__main__":
 
     # jax.tree_map(lambda v: print(v.shape, v.dtype, v.scale.dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
-    @jit
+    # @jit
     @jsa.autoscale
     def update(params, batch):
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
 
-    # num_batches = 1
-    # num_epochs = 1
+    num_batches = 1
+    num_epochs = 1
 
     for epoch in range(num_epochs):
         start_time = time.time()
