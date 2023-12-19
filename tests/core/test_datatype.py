@@ -137,6 +137,17 @@ class ScaledArrayDataclassTests(chex.TestCase):
         npt.assert_array_almost_equal(output.scale, data)
 
     @parameterized.parameters(
+        {"data": jnp.float32(3.0)},
+    )
+    def test__as_scaled_array__optional_scalar(self, data):
+        scale = np.float16(2)
+        output = as_scaled_array(data, scale=scale)
+        assert isinstance(output, ScaledArray)
+        assert output.scale.dtype == np.float16
+        npt.assert_array_equal(output.scale, np.array(2, dtype=np.float16))
+        npt.assert_array_almost_equal(output, data)
+
+    @parameterized.parameters(
         {"data": False},
         {"data": 2},
         {"data": np.array([1, 2])},

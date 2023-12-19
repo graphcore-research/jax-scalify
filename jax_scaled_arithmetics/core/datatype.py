@@ -129,12 +129,12 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[A
     if isinstance(val, ScaledArray):
         return val
 
-    # FIXME: support general case.
-    assert scale is None or np.float32(scale) == np.float32(1)  # type:ignore
+    # Simple case => when can ignore the scaling factor (i.e. 1 implicitely).
+    is_static_one_scale: bool = scale is None or is_static_one_scalar(scale)  # type:ignore
     # Trivial cases: bool, int, float.
-    if isinstance(val, (bool, int)):
+    if is_static_one_scale and isinstance(val, (bool, int)):
         return val
-    if isinstance(val, float):
+    if is_static_one_scale and isinstance(val, float):
         return ScaledArray(np.array(1, dtype=np.float32), np.float32(val))
 
     # Ignored dtypes by default: int and bool
@@ -142,12 +142,15 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[A
     if ignored_dtype:
         return val
     # Floating point scalar
-    if val.ndim == 0:
+    if val.ndim == 0 and is_static_one_scale:
         return ScaledArray(np.array(1, dtype=val.dtype), val)
 
     scale = np.array(1, dtype=val.dtype) if scale is None else scale
     if isinstance(val, (np.ndarray, Array)):
-        return ScaledArray(val, scale)
+        if is_static_one_scale:
+            return ScaledArray(val, scale)
+        else:
+            return ScaledArray(val / scale.astype(val.dtype), scale)  # type:ignore
     return scaled_array_base(val, scale)
 
 
@@ -165,7 +168,7 @@ def as_scaled_array(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:
     Returns:
         Scaled array instance.
     """
-    return jax.tree_map(lambda x: as_scaled_array_base(x, None), val, is_leaf=is_scaled_leaf)
+    return jax.tree_map(lambda x: as_scaled_array_base(x, scale), val, is_leaf=is_scaled_leaf)
 
 
 def asarray_base(val: Any, dtype: DTypeLike = None) -> GenericArray:
