@@ -104,6 +104,20 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         assert z.dtype == x.dtype
         npt.assert_almost_equal(z.scale, np.sqrt(4.0 + 9.0))
 
+    @parameterized.parameters(
+        {"prim": lax.add_p},
+        {"prim": lax.sub_p},
+    )
+    def test__scaled_addsub__not_overflowing_scale(self, prim):
+        scaled_op, _ = find_registered_scaled_op(prim)
+        x = scaled_array([-1.0, 2.0], np.float16(2.0), dtype=np.float16)
+        y = scaled_array([1.5, 4.0], np.float16(1024.0), dtype=np.float16)
+        z = scaled_op(x, y)
+        print(z, x, y)
+        assert z.scale.dtype == np.float16
+        assert np.isfinite(z.scale)
+        npt.assert_array_almost_equal(z, prim.bind(np.asarray(x, np.float32), np.asarray(y, np.float32)), decimal=6)
+
     def test__scaled_mul__proper_scaling(self):
         x = scaled_array([-2.0, 2.0], 3, dtype=np.float32)
         y = scaled_array([1.5, 1.5], 2, dtype=np.float32)
