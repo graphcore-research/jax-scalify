@@ -83,14 +83,14 @@ def predict(params, inputs):
         # print("WEIGHTS dtype", w.dtype)s
         # w = cast_fp8_fwd(w)
 
-        debug_print(f"BIAS {idx}", b)
-        b = debug_print_grad(b)
+        # debug_print(f"BIAS {idx}", b)
+        # b = debug_print_grad(b)
 
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
-        outputs = debug_print_grad(outputs)
+        # outputs = debug_print_grad(outputs)
         activations = jnp.maximum(outputs, 0)
-        activations = debug_print_grad(activations)
+        # activations = debug_print_grad(activations)
 
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
@@ -148,8 +148,8 @@ if __name__ == "__main__":
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
 
-    num_batches = 1
-    num_epochs = 1
+    # num_batches = 1
+    # num_epochs = 1
 
     for epoch in range(num_epochs):
         start_time = time.time()
@@ -164,9 +164,9 @@ if __name__ == "__main__":
 
         epoch_time = time.time() - start_time
 
-        # raw_params = jsa.asarray(params, dtype=np.float32)
-        # train_acc = accuracy(raw_params, (train_images, train_labels))
-        # test_acc = accuracy(raw_params, (test_images, test_labels))
+        raw_params = jsa.asarray(params, dtype=np.float32)
+        train_acc = accuracy(raw_params, (train_images, train_labels))
+        test_acc = accuracy(raw_params, (test_images, test_labels))
         print(f"Epoch {epoch} in {epoch_time:0.2f} sec")
-        # print(f"Training set accuracy {train_acc}")
-        # print(f"Test set accuracy {test_acc}")
+        print(f"Training set accuracy {train_acc}")
+        print(f"Test set accuracy {test_acc}")
