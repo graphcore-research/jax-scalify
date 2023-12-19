@@ -12,22 +12,31 @@ from jax_scaled_arithmetics.core import DTypeLike, ScaledArray, as_scaled_array,
 from .scaled_ops_common import check_scalar_scales, promote_scale_types
 
 
-@core.register_scaled_lax_op
-def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
+def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArray:
+    """Scaled add/sub generic implementation."""
     # TODO: understand when promotion is really required?
     A, B = as_scaled_array((A, B))  # type:ignore
     check_scalar_scales(A, B)
     A, B = promote_scale_types(A, B)
     assert np.issubdtype(A.scale.dtype, np.floating)
     # TODO: what happens to `sqrt` for non-floating scale?
-    output_scale = lax.sqrt(A.scale * A.scale + B.scale * B.scale)
+    # More stable than direct L2 norm, to avoid scale overflow.
+    ABscale_max = lax.max(A.scale, B.scale)
+    ABscale_min = lax.min(A.scale, B.scale)
+    ABscale_ratio = ABscale_min / ABscale_max
+    output_scale = ABscale_max * lax.sqrt(1 + ABscale_ratio * ABscale_ratio)
     # Output dtype => promotion of A and B dtypes.
     outdtype = jnp.promote_types(A.dtype, B.dtype)
     Arescale = (A.scale / output_scale).astype(outdtype)
     Brescale = (B.scale / output_scale).astype(outdtype)
     # check correct type output if mismatch between data and scale precision
-    output_data = Arescale * A.data + Brescale * B.data
+    output_data = binary_op(Arescale * A.data, Brescale * B.data)
     return ScaledArray(output_data, output_scale)
+
+
+@core.register_scaled_lax_op
+def scaled_add(A: ScaledArray, B: ScaledArray) -> ScaledArray:
+    return scaled_add_sub(A, B, lax.add)
 
 
 # TODO: understand difference between `add` and `add_anys`
@@ -36,20 +45,7 @@ register_scaled_op(add_any_p, scaled_add)
 
 @core.register_scaled_lax_op
 def scaled_sub(A: ScaledArray, B: ScaledArray) -> ScaledArray:
-    # TODO: understand when promotion is really required?
-    A, B = as_scaled_array((A, B))  # type:ignore
-    check_scalar_scales(A, B)
-    A, B = promote_scale_types(A, B)
-    assert np.issubdtype(A.scale.dtype, np.floating)
-    # TODO: what happens to `sqrt` for non-floating scale?
-    output_scale = lax.sqrt(A.scale * A.scale + B.scale * B.scale)
-    # Output dtype => promotion of A and B dtypes.
-    outdtype = jnp.promote_types(A.dtype, B.dtype)
-    Arescale = (A.scale / output_scale).astype(outdtype)
-    Brescale = (B.scale / output_scale).astype(outdtype)
-    # check correct type output if mismatch between data and scale precision
-    output_data = Arescale * A.data - Brescale * B.data
-    return ScaledArray(output_data, output_scale)
+    return scaled_add_sub(A, B, lax.sub)
 
 
 @core.register_scaled_lax_op
