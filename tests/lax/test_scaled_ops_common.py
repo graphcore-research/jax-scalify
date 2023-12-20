@@ -43,7 +43,8 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
                 host_values.append(v)
 
         def fn(a):
-            debug_callback(callback, a, a * 3)
+            # NOTE: multiplying by a power of 2 to simplify test.
+            debug_callback(callback, a, a * 4)
             return a
 
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float16)
@@ -55,7 +56,7 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
             assert isinstance(sv, ScaledArray)
             npt.assert_array_equal(sv.data, x.data)
         npt.assert_array_equal(host_values[0].scale, x.scale)
-        npt.assert_array_equal(host_values[1].scale, x.scale * 3)
+        npt.assert_array_equal(host_values[1].scale, x.scale * 4)
 
     def test__scaled_broadcast_in_dim__proper_scaling(self):
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)

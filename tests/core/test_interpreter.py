@@ -9,9 +9,12 @@ from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import (
     Array,
+    AutoScaleConfig,
+    Pow2RoundMode,
     ScaledArray,
     asarray,
     autoscale,
+    get_autoscale_config,
     is_scaled_leaf,
     register_scaled_op,
     scaled_array,
@@ -217,8 +220,8 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_val = promote_scalar_to_scaled_array(input)
         assert isinstance(scaled_val, ScaledArray)
         assert scaled_val.data.dtype == scaled_val.scale.dtype
-        npt.assert_array_equal(scaled_val.data, 1)
-        npt.assert_array_equal(scaled_val.scale, input)
+        # NOTE: scale is a power-of-two.
+        npt.assert_almost_equal(np.asarray(scaled_val), input)
 
     @parameterized.parameters(
         {"input": np.array(3)},
@@ -229,3 +232,14 @@ class AutoScaleInterpreterTests(chex.TestCase):
     def test__promote_scalar_to_scaled_array__not_promoted_to_scaled_array(self, input):
         out = promote_scalar_to_scaled_array(input)
         assert out is input
+
+    def test__autoscale_config__default_values(self):
+        cfg = get_autoscale_config()
+        assert isinstance(cfg, AutoScaleConfig)
+        assert cfg.rounding_mode == Pow2RoundMode.DOWN
+
+    def test__autoscale_config__context_manager(self):
+        with AutoScaleConfig(rounding_mode=Pow2RoundMode.NONE):
+            cfg = get_autoscale_config()
+            assert isinstance(cfg, AutoScaleConfig)
+            assert cfg.rounding_mode == Pow2RoundMode.NONE

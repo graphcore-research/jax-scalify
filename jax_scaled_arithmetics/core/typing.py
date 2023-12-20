@@ -19,10 +19,13 @@ else:
 def get_numpy_api(val: Any) -> Any:
     """Get the Numpy API corresponding to an array.
 
+    Using the NumPy API whenever possible when tracing a JAX graph
+    allows for simple constant folding optimization.
+
     JAX or classic Numpy supported.
     """
-    if isinstance(val, jax.Array):
-        return jnp
-    elif isinstance(val, (np.ndarray, np.number)):
+    if isinstance(val, (np.ndarray, np.number)):
         return np
+    if isinstance(val, ArrayTypes):
+        return jnp
     raise NotImplementedError(f"Unsupported input type '{type(val)}'. No matching Numpy API.")

@@ -15,6 +15,8 @@ from jax_scaled_arithmetics.core import (
     is_scaled_leaf,
     is_static_one_scalar,
     is_static_zero,
+    make_scaled_scalar,
+    pow2_round_down,
     scaled_array,
 )
 
@@ -101,6 +103,56 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert isinstance(out, np.ndarray)
         npt.assert_array_equal(out, sarr.data * sarr.scale)
 
+    @parameterized.parameters(
+        {"val": 0.25},
+    )
+    def test__make_scaled_scalar__float_input(self, val):
+        scaled_val = make_scaled_scalar(val)
+        assert isinstance(scaled_val, ScaledArray)
+        assert scaled_val.shape == ()
+        assert scaled_val.data.dtype == np.float32
+        assert scaled_val.scale.dtype == np.float32
+        npt.assert_equal(np.asarray(scaled_val), val)
+        assert isinstance(scaled_val.data, (np.ndarray, np.number))
+        assert isinstance(scaled_val.scale, (np.ndarray, np.number))
+
+    @parameterized.parameters(
+        {"val": np.float16(0)},
+        {"val": np.float32(0)},
+        # {"val": np.float64(0)}, FIXME!
+    )
+    def test__make_scaled_scalar__zero_scalar_input(self, val):
+        scaled_val = make_scaled_scalar(val)
+        assert isinstance(scaled_val, ScaledArray)
+        assert scaled_val.shape == ()
+        assert scaled_val.dtype == val.dtype
+
+    @parameterized.parameters(
+        {"val": np.array(1.0)},
+        {"val": np.float32(-0.5)},
+        {"val": np.float16(1.25)},
+        {"val": np.float32(-65504)},
+        # Testing JAX arrays too.
+        {"val": jnp.float32(0.5)},
+        {"val": jnp.float16(1.25)},
+    )
+    def test__make_scaled_scalar__proper_split_data_scale(self, val):
+        scaled_val = make_scaled_scalar(val)
+        assert isinstance(scaled_val, ScaledArray)
+        assert scaled_val.shape == ()
+        assert scaled_val.data.dtype == val.dtype
+        assert scaled_val.scale.dtype == val.dtype
+        npt.assert_equal(np.asarray(scaled_val), val)
+        npt.assert_equal(scaled_val.scale, pow2_round_down(val))
+        npt.assert_array_less(0, scaled_val.scale)
+        # Make sure we are not doing implicit conversion to JAX arrays.
+        if isinstance(val, Array):
+            assert isinstance(scaled_val.data, Array)
+            assert isinstance(scaled_val.scale, Array)
+        else:
+            assert isinstance(scaled_val.data, (np.ndarray, np.number))
+            assert isinstance(scaled_val.scale, (np.ndarray, np.number))
+
     def test__is_scaled_leaf__consistent_with_jax(self):
         assert is_scaled_leaf(8)
         assert is_scaled_leaf(2.0)
@@ -134,8 +186,8 @@ class ScaledArrayDataclassTests(chex.TestCase):
         output = as_scaled_array(data)
         assert isinstance(output, ScaledArray)
         assert output.data.dtype == output.scale.dtype
-        npt.assert_array_almost_equal(output.data, 1)
-        npt.assert_array_almost_equal(output.scale, data)
+        # NOTE: for scalars, data always in [1, 2)
+        npt.assert_almost_equal(np.asarray(output), data)
 
     @parameterized.parameters(
         {"data": jnp.float32(3.0)},
