@@ -22,8 +22,9 @@ class ScaledTranslationDotPrimitivesTests(chex.TestCase):
         {"ldtype": np.float16, "rdtype": np.float16},
     )
     def test__scaled_dot_general__proper_scaling(self, ldtype, rdtype):
+        # Reduction dimension: 5 => sqrt(5) ~ 2
         lhs = scaled_array(self.rs.rand(3, 5), 2.0, dtype=ldtype)
-        rhs = scaled_array(self.rs.rand(5, 2), 3.0, dtype=rdtype)
+        rhs = scaled_array(self.rs.rand(5, 2), 4.0, dtype=rdtype)
 
         dimension_numbers = (((1,), (0,)), ((), ()))
         out = scaled_dot_general(lhs, rhs, dimension_numbers)
@@ -32,7 +33,7 @@ class ScaledTranslationDotPrimitivesTests(chex.TestCase):
         assert isinstance(out, ScaledArray)
         assert out.dtype == expected_out.dtype
         assert out.scale.dtype == np.float32  # TODO: more test coverage.
-        npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * np.sqrt(5))
+        npt.assert_almost_equal(out.scale, lhs.scale * rhs.scale * 2)
         npt.assert_array_almost_equal(out, expected_out, decimal=2)
 
 
@@ -97,12 +98,13 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
     )
     def test__scaled_addsub__proper_scaling(self, prim):
         scaled_op, _ = find_registered_scaled_op(prim)
-        x = scaled_array([-1.0, 2.0], 3.0, dtype=np.float32)
+        x = scaled_array([-1.0, 2.0], 4.0, dtype=np.float32)
         y = scaled_array([1.5, 4.5], 2.0, dtype=np.float32)
         z = scaled_op(x, y)
         assert isinstance(z, ScaledArray)
         assert z.dtype == x.dtype
-        npt.assert_almost_equal(z.scale, np.sqrt(4.0 + 9.0))
+        # Round down to power-of-2
+        npt.assert_almost_equal(z.scale, 4)
 
     @parameterized.parameters(
         {"prim": lax.add_p},
@@ -142,7 +144,7 @@ class ScaledTranslationReducePrimitivesTests(chex.TestCase):
         self.rs = np.random.RandomState(42)
 
     @parameterized.parameters(
-        {"reduce_prim": lax.reduce_sum_p, "expected_scale": 2 * np.sqrt(5)},
+        {"reduce_prim": lax.reduce_sum_p, "expected_scale": 2 * 2},
         {"reduce_prim": lax.reduce_prod_p, "expected_scale": 2**5},
         {"reduce_prim": lax.reduce_min_p, "expected_scale": 2},
         {"reduce_prim": lax.reduce_max_p, "expected_scale": 2},

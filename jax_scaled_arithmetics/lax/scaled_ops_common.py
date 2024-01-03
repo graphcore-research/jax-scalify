@@ -85,7 +85,7 @@ def scaled_reduce_precision(A: ScaledArray, exponent_bits: int, mantissa_bits: i
 def scaled_concatenate(operands: Sequence[ScaledArray], dimension: int) -> ScaledArray:
     # TODO: inputs checking (dtype and cie).
     scales = jnp.array([v.scale for v in operands])
-    # Max rescaling of the collection of operands.
+    # Max rescaling of the collection of operands. Preserving pow2 scaling.
     # TODO: explore alternative strategies?
     outdtype = operands[0].dtype
     scale_max = jnp.max(scales)

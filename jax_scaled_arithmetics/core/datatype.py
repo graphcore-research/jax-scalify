@@ -10,7 +10,8 @@ from jax.core import ShapedArray
 from jax.tree_util import register_pytree_node_class
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-from .typing import Array, ArrayTypes
+from .typing import Array, ArrayTypes, get_numpy_api
+from .utils import get_mantissa, pow2_round_down
 
 GenericArray = Union[Array, np.ndarray]
 
@@ -42,6 +43,7 @@ class ScaledArray:
     scale: GenericArray
 
     def __post_init__(self):
+        # TODO/FIXME: support number as data?
         assert isinstance(self.data, (*ArrayTypes, np.ndarray))
         assert isinstance(self.scale, (*ArrayTypes, np.ndarray, np.number))
         # Only supporting scale scalar for now.
@@ -93,6 +95,29 @@ class ScaledArray:
         return ShapedArray(self.data.shape, self.data.dtype)
 
 
+def make_scaled_scalar(val: Array) -> ScaledArray:
+    """Make a scaled scalar (array), from a single value.
+
+    The returned scalar will always be built such that:
+        - data is scalar in [1, 2)
+        - scale is a power-of-2 value.
+
+    NOTE: data is chosen in [1, 2) instead of [0, 1) in order to
+    keep any value representable in the same dtype, without overflowing.
+
+    NOTE bis: only supporting floating point input.
+    """
+    # FIXME: implicit conversion from float64 to float32???
+    if isinstance(val, float):
+        val = np.float32(val)
+    assert np.ndim(val) == 0
+    assert np.issubdtype(val.dtype, np.floating)
+    # Split mantissa and exponent in data and scale components.
+    scale = pow2_round_down(val)
+    npapi = get_numpy_api(scale)
+    return ScaledArray(npapi.asarray(get_mantissa(val)), scale)
+
+
 def is_scaled_leaf(val: Any) -> bool:
     """Is input a JAX PyTree (scaled) leaf, including ScaledArray.
 
@@ -135,7 +160,7 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[A
     if is_static_one_scale and isinstance(val, (bool, int)):
         return val
     if is_static_one_scale and isinstance(val, float):
-        return ScaledArray(np.array(1, dtype=np.float32), np.float32(val))
+        return make_scaled_scalar(np.float32(val))
 
     # Ignored dtypes by default: int and bool
     ignored_dtype = np.issubdtype(val.dtype, np.integer) or np.issubdtype(val.dtype, np.bool_)
@@ -143,7 +168,7 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[A
         return val
     # Floating point scalar
     if val.ndim == 0 and is_static_one_scale:
-        return ScaledArray(np.array(1, dtype=val.dtype), val)
+        return make_scaled_scalar(val)
 
     scale = np.array(1, dtype=val.dtype) if scale is None else scale
     if isinstance(val, (np.ndarray, Array)):

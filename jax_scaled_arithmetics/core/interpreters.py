@@ -1,4 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
+from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial, wraps
 from typing import Any, Dict, Sequence, Tuple
@@ -15,6 +16,35 @@ from jax._src.custom_derivatives import (
 from jax._src.util import safe_map
 
 from .datatype import NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
+from .utils import Pow2RoundMode
+
+
+@dataclass(frozen=True)
+class AutoScaleConfig:
+    """AutoScale configuration/parameters when tracing a graph.
+
+    NOTE: this config can be locally changed using a Python context manager:
+    `with AutoScaleConfig(...):`
+    """
+
+    rounding_mode: Pow2RoundMode = Pow2RoundMode.DOWN
+
+    def __enter__(self):
+        global _autoscale_config_stack
+        _autoscale_config_stack.append(self)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        global _autoscale_config_stack
+        _autoscale_config_stack.pop()
+
+
+# AutoScale config stack.
+_autoscale_config_stack = [AutoScaleConfig()]
+
+
+def get_autoscale_config() -> AutoScaleConfig:
+    """Get current/local autoscale config."""
+    return _autoscale_config_stack[-1]
 
 
 class ScaledPrimitiveType(IntEnum):
