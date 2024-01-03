@@ -5,6 +5,7 @@ from .datatype import (  # noqa: F401
     Shape,
     as_scaled_array,
     asarray,
+    get_scale_dtype,
     is_scaled_leaf,
     is_static_one_scalar,
     is_static_zero,

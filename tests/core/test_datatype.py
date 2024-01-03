@@ -11,6 +11,7 @@ from jax_scaled_arithmetics.core import (
     ScaledArray,
     as_scaled_array,
     asarray,
+    get_scale_dtype,
     is_scaled_leaf,
     is_static_one_scalar,
     is_static_zero,
@@ -237,3 +238,11 @@ class ScaledArrayDataclassTests(chex.TestCase):
         r = is_static_one_scalar(asarray(val))
         assert isinstance(r, (bool, np.bool_))
         assert r == result
+
+    @parameterized.parameters(
+        {"val": np.float32(2), "result": np.float32},
+        {"val": ScaledArray(np.array(2.0), np.float16(3)), "result": np.float16},
+    )
+    def test__get_scale_dtype__proper_dtype(self, val, result):
+        sdtype = get_scale_dtype(val)
+        assert sdtype == result
