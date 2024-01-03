@@ -226,3 +226,10 @@ def is_static_one_scalar(val: Array) -> Union[bool, np.bool_]:
     elif isinstance(val, ScaledArray) and val.size == 1:
         return is_static_one_scalar(val.data) and is_static_one_scalar(val.scale)
     return False
+
+
+def get_scale_dtype(val: Any) -> DTypeLike:
+    """Get the scale dtype. Compatible with arrays and scaled arrays."""
+    if isinstance(val, ScaledArray):
+        return val.scale.dtype
+    return val.dtype

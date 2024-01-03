@@ -8,7 +8,15 @@ import numpy as np
 from jax import lax
 
 from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import Array, DTypeLike, ScaledArray, Shape, as_scaled_array, is_static_zero
+from jax_scaled_arithmetics.core import (
+    Array,
+    DTypeLike,
+    ScaledArray,
+    Shape,
+    as_scaled_array,
+    get_scale_dtype,
+    is_static_zero,
+)
 
 from .base_scaling_primitives import scaled_set_scaling
 
@@ -233,7 +241,7 @@ def scaled_log(val: ScaledArray) -> ScaledArray:
 
 @core.register_scaled_lax_op
 def scaled_select_n(which: Array, *cases: ScaledArray) -> ScaledArray:
-    outscale_dtype = promote_types(*[v.scale.dtype for v in cases])
+    outscale_dtype = promote_types(*[get_scale_dtype(v) for v in cases])
     outscale = np.array(1, dtype=outscale_dtype)
     return scaled_op_default_translation(lax.select_n_p, [which, *cases], outscale=outscale)
 
