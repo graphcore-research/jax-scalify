@@ -117,7 +117,7 @@ if __name__ == "__main__":
     param_scale = 0.1
     param_scale = 1.0
 
-    step_size = 0.001
+    step_size = 0.01
     num_epochs = 10
     batch_size = 128
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray`
     params = jax.tree_map(lambda v: v.astype(np.float16), params)
-    params = jsa.as_scaled_array(params)
+    # params = jsa.as_scaled_array(params)
 
     # jax.tree_map(lambda v: print(v.shape, v.dtype, v.scale.dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
@@ -148,8 +148,8 @@ if __name__ == "__main__":
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
 
-    num_batches = 1
-    num_epochs = 1
+    num_batches = 2
+    num_epochs = 3
 
     for epoch in range(num_epochs):
         start_time = time.time()
@@ -157,8 +157,9 @@ if __name__ == "__main__":
             batch = next(batches)
             batch = jax.tree_map(lambda v: v.astype(np.float16), batch)
             # print("MINMAX:", np.min(batch[1]), np.max(batch[1]))
-            batch = jsa.as_scaled_array(batch)
-            params = update(params, batch)
+            # batch = jsa.as_scaled_array(batch)
+            with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN):
+                params = update(params, batch)
 
             # print(params)
 
