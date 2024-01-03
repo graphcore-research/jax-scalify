@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
     # jax.tree_map(lambda v: print(v.shape, v.dtype, v.scale.dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
-    # @jit
+    @jit
     @jsa.autoscale
     def update(params, batch):
         grads = grad(loss)(params, batch)

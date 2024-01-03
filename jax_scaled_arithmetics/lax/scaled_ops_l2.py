@@ -34,14 +34,14 @@ def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArra
 
     scaled_count[binary_op] = scaled_count.get(binary_op, 0) + 1
 
-    if binary_op is lax.add and scaled_count[binary_op] <= 1:
-        print("ADD:", scaled_count[binary_op], A, B)
-        outdtype = jnp.promote_types(A.dtype, B.dtype)
-        output_scale = np.array(32, dtype=A.scale.dtype)
-        Arescale = (A.scale / output_scale).astype(outdtype)
-        Brescale = (B.scale / output_scale).astype(outdtype)
-        output_data = binary_op(Arescale * A.data, Brescale * B.data)
-        return ScaledArray(output_data, output_scale)
+    # if binary_op is lax.add and scaled_count[binary_op] <= 1:
+    #     print("ADD:", scaled_count[binary_op], A, B)
+    #     outdtype = jnp.promote_types(A.dtype, B.dtype)
+    #     output_scale = np.array(32, dtype=A.scale.dtype)
+    #     Arescale = (A.scale / output_scale).astype(outdtype)
+    #     Brescale = (B.scale / output_scale).astype(outdtype)
+    #     output_data = binary_op(Arescale * A.data, Brescale * B.data)
+    #     return ScaledArray(output_data, output_scale)
 
     # TODO: what happens to `sqrt` for non-floating scale?
     # More stable than direct L2 norm, to avoid scale overflow.
