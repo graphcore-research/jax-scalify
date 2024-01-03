@@ -79,7 +79,7 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
     def test__scaled_binary_op__proper_result_and_promotion(self, prim, dtype, sdtype):
         scaled_op, _ = find_registered_scaled_op(prim)
         # NOTE: direct construction to avoid weirdity between NumPy array and scalar!
-        x = ScaledArray(np.array([-1.0, 2.0], dtype), sdtype(3.0))
+        x = ScaledArray(np.array([-1.0, 2.0], dtype), sdtype(8.0))
         y = ScaledArray(np.array([1.5, 4.5], dtype), sdtype(2.0))
         # Ensure scale factor has the right dtype.
         assert x.scale.dtype == sdtype
@@ -90,7 +90,7 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
 
         assert z.dtype == x.dtype
         assert z.scale.dtype == sdtype
-        npt.assert_array_almost_equal(z, expected_z, decimal=3)
+        npt.assert_array_almost_equal(z, expected_z, decimal=4)
 
     @parameterized.parameters(
         {"prim": lax.add_p},
@@ -115,10 +115,23 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         x = scaled_array([-1.0, 2.0], np.float16(2.0), dtype=np.float16)
         y = scaled_array([1.5, 4.0], np.float16(1024.0), dtype=np.float16)
         z = scaled_op(x, y)
-        print(z, x, y)
         assert z.scale.dtype == np.float16
         assert np.isfinite(z.scale)
         npt.assert_array_almost_equal(z, prim.bind(np.asarray(x, np.float32), np.asarray(y, np.float32)), decimal=6)
+
+    @parameterized.parameters(
+        {"prim": lax.max_p},
+        {"prim": lax.min_p},
+    )
+    def test__scaled_minmax__static_zero_scale_propagation(self, prim):
+        scaled_op, _ = find_registered_scaled_op(prim)
+        x = scaled_array([-1.0, 2.0], 4.0, dtype=np.float32)
+        y = scaled_array([1.5, 4.5], 0.0, dtype=np.float32)
+        z = scaled_op(x, y)
+        assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
+        # Keep the lhs scale.
+        npt.assert_almost_equal(z.scale, 4.0)
 
     def test__scaled_mul__proper_scaling(self):
         x = scaled_array([-2.0, 2.0], 3, dtype=np.float32)

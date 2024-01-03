@@ -206,6 +206,35 @@ def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> Array:
     return scaled_boolean_binary_op(lhs, rhs, lax.le_p)
 
 
+def scaled_minmax(prim: jax.core.Primitive, lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    """General min/max scaled translation: propagating the largest input scale."""
+    check_scalar_scales(lhs, rhs)
+    # Specific rule if lhs/rhs is zero => propagate the other term scale.
+    if np.all(is_static_zero(lhs)):
+        return ScaledArray(prim.bind(lhs.data, rhs.data), rhs.scale)
+    if np.all(is_static_zero(rhs)):
+        return ScaledArray(prim.bind(lhs.data, rhs.data), lhs.scale)
+
+    # Power-of-2 stable!
+    output_scale = lax.max(lhs.scale, rhs.scale)
+    # TODO: isolate this "binary" rescale logic into separate function.
+    outdtype = jnp.promote_types(lhs.dtype, rhs.dtype)
+    lhs_rescale = (lhs.scale / output_scale).astype(outdtype)
+    rhs_rescale = (rhs.scale / output_scale).astype(outdtype)
+    output_data = prim.bind(lhs_rescale * lhs.data, rhs_rescale * rhs.data)
+    return ScaledArray(output_data, output_scale)
+
+
+@core.register_scaled_lax_op
+def scaled_min(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    return scaled_minmax(lax.min_p, lhs, rhs)
+
+
+@core.register_scaled_lax_op
+def scaled_max(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
+    return scaled_minmax(lax.max_p, lhs, rhs)
+
+
 ##################################################################
 # Default scaled ops implementation #
 ##################################################################
@@ -254,13 +283,3 @@ def scaled_cos(val: ScaledArray) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_sin(val: ScaledArray) -> ScaledArray:
     return scaled_op_default_translation(lax.sin_p, [val])
-
-
-@core.register_scaled_lax_op
-def scaled_min(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
-    return scaled_op_default_translation(lax.min_p, [lhs, rhs])
-
-
-@core.register_scaled_lax_op
-def scaled_max(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
-    return scaled_op_default_translation(lax.max_p, [lhs, rhs])
