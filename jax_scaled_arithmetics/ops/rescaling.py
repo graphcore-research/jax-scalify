@@ -2,6 +2,8 @@
 from functools import partial
 
 import jax
+
+# import jax.numpy as jnp
 import numpy as np
 
 from jax_scaled_arithmetics.core import ScaledArray, pow2_round
@@ -48,7 +50,7 @@ def dynamic_rescale_max_base(arr: ScaledArray) -> ScaledArray:
     data_sq = jax.lax.abs(data)
     axes = tuple(range(data.ndim))
     # Get MAX norm + pow2 rounding.
-    norm = jax.lax.reduce_max_p.bind(data_sq, axes=axes)
+    norm = jax.lax.reduce_max_p.bind(data_sq, axes=axes) + np.float32(1e-3)
     norm = pow2_round(norm.astype(scale.dtype))
     # Rebalancing based on norm.
     return rebalance(arr, norm)
@@ -63,7 +65,7 @@ def dynamic_rescale_l1_base(arr: ScaledArray) -> ScaledArray:
     data_sq = jax.lax.abs(data.astype(np.float32))
     axes = tuple(range(data.ndim))
     # Get L1 norm + pow2 rounding.
-    norm = jax.lax.reduce_sum_p.bind(data_sq, axes=axes) / data.size
+    norm = jax.lax.reduce_sum_p.bind(data_sq, axes=axes) / data.size + np.float32(1e-3)
     norm = pow2_round(norm.astype(scale.dtype))
     # Rebalancing based on norm.
     return rebalance(arr, norm)
