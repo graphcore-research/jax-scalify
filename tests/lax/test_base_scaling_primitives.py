@@ -6,7 +6,12 @@ import numpy.testing as npt
 from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import Array, ScaledArray, autoscale, scaled_array
-from jax_scaled_arithmetics.lax.base_scaling_primitives import scaled_set_scaling, set_scaling, stop_scaling
+from jax_scaled_arithmetics.lax.base_scaling_primitives import (
+    get_data_scale,
+    scaled_set_scaling,
+    set_scaling,
+    stop_scaling,
+)
 
 
 class SetScalingPrimitiveTests(chex.TestCase):
@@ -91,3 +96,27 @@ class StopScalingPrimitiveTests(chex.TestCase):
         assert out1.dtype == np.float16
         npt.assert_array_equal(out0, arr)
         npt.assert_array_almost_equal(out1, arr)
+
+
+class GetDataScalePrimitiveTests(chex.TestCase):
+    @chex.variants(with_jit=True, without_jit=True)
+    def test__get_data_scale_primitive__proper_result_without_autoscale(self):
+        def fn(arr):
+            return get_data_scale(arr)
+
+        fn = self.variant(fn)
+        arr = jnp.array([2, 3], dtype=np.float16)
+        data, scale = fn(arr)
+        npt.assert_array_equal(data, arr)
+        npt.assert_equal(scale, np.array(1, arr.dtype))
+
+    @chex.variants(with_jit=True, without_jit=True)
+    def test__get_data_scale_primitive__proper_result_with_autoscale(self):
+        def fn(arr):
+            return get_data_scale(arr)
+
+        fn = self.variant(autoscale(fn))
+        arr = scaled_array([2, 3], 4, dtype=np.float16)
+        data, scale = fn(arr)
+        npt.assert_array_equal(data, arr.data)
+        npt.assert_equal(scale, arr.scale)
