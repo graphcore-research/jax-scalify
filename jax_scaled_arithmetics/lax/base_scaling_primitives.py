@@ -146,11 +146,15 @@ def get_data_scale(values: Array) -> Array:
 
 
 def get_data_scale_impl(values: Array) -> Array:
+    if isinstance(values, ScaledArray):
+        return (values.data, values.scale)
     scale = np.ones((), dtype=values.dtype)
     return values, scale
 
 
 def get_data_scale_abstract_eval(values: core.ShapedArray) -> core.ShapedArray:
+    if isinstance(values, ScaledArray):
+        return (values.data, values.scale)
     return values, core.ShapedArray((), dtype=values.dtype)
 
 
