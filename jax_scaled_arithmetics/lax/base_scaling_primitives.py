@@ -1,9 +1,10 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from typing import Optional, Sequence, Union
 
+import numpy as np
 from jax import core
 from jax.interpreters import mlir
-from jax.interpreters.mlir import LoweringRuleContext, ir
+from jax.interpreters.mlir import LoweringRuleContext, ir, ir_constant
 
 from jax_scaled_arithmetics.core import (
     Array,
@@ -126,3 +127,51 @@ stop_scaling_p.def_impl(stop_scaling_impl)
 mlir.register_lowering(stop_scaling_p, stop_scaling_mlir_lowering)
 # Register "scaled" translation.
 register_scaled_op(stop_scaling_p, scaled_stop_scaling)
+
+
+get_data_scale_p = core.Primitive("get_data_scale_p")
+"""`get_data_scale` unbundling JAX primitive: return a tuple of data and scale
+arrays.
+
+In standard JAX, this is just an operation returning the input array and a constant scalar(1).
+
+In JAX Scaled Arithmetics/AutoScale mode, it will return the pair of data and scale tensors
+from a ScaledArray.
+"""
+
+
+def get_data_scale(values: Array) -> Array:
+    """`get_data_scale` primitive call method."""
+    return get_data_scale_p.bind(values)
+
+
+def get_data_scale_impl(values: Array) -> Array:
+    scale = np.ones((), dtype=values.dtype)
+    return values, scale
+
+
+def get_data_scale_abstract_eval(values: core.ShapedArray) -> core.ShapedArray:
+    return values, core.ShapedArray((), dtype=values.dtype)
+
+
+def get_data_scale_mlir_lowering(
+    ctx: LoweringRuleContext, *args: Union[ir.Value, Sequence[ir.Value]]
+) -> Sequence[Union[ir.Value, Sequence[ir.Value]]]:
+    # Just forwarding `values` term, adding a constant scalar scale(1).
+    assert len(args) == 1
+    scale = ir_constant(np.ones((), dtype=ctx.avals_in[0].dtype))
+    return (args[0], scale)
+
+
+def scaled_get_data_scale(values: ScaledArray) -> Array:
+    """Scaled `get_data_scale` implementation: return scale tensor."""
+    return values.data, values.scale
+
+
+# Register as standard JAX primitive
+get_data_scale_p.multiple_results = True
+get_data_scale_p.def_abstract_eval(get_data_scale_abstract_eval)
+get_data_scale_p.def_impl(get_data_scale_impl)
+mlir.register_lowering(get_data_scale_p, get_data_scale_mlir_lowering)
+# Register "scaled" translation.
+register_scaled_op(get_data_scale_p, scaled_get_data_scale)
