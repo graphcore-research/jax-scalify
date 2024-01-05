@@ -120,3 +120,14 @@ class GetDataScalePrimitiveTests(chex.TestCase):
         data, scale = fn(arr)
         npt.assert_array_equal(data, arr.data)
         npt.assert_equal(scale, arr.scale)
+
+    def test__get_data_scale_primitive__numpy_input(self):
+        arr = scaled_array([2, 3], 4, dtype=np.float16)
+        # ScaledArray input.
+        data, scale = get_data_scale(arr)
+        npt.assert_array_equal(data, arr.data)
+        npt.assert_array_equal(scale, arr.scale)
+        # Normal numpy array input.
+        data, scale = get_data_scale(np.asarray(arr))
+        npt.assert_array_equal(data, arr)
+        npt.assert_almost_equal(scale, 1)
