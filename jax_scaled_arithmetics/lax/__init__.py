@@ -2,6 +2,7 @@
 from .base_scaling_primitives import (  # noqa: F401
     get_data_scale,
     get_data_scale_p,
+    rebalance,
     set_scaling,
     set_scaling_p,
     stop_scaling,
