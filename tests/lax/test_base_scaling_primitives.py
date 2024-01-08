@@ -8,6 +8,7 @@ from absl.testing import parameterized
 from jax_scaled_arithmetics.core import Array, ScaledArray, autoscale, scaled_array
 from jax_scaled_arithmetics.lax.base_scaling_primitives import (
     get_data_scale,
+    rebalance,
     scaled_set_scaling,
     set_scaling,
     stop_scaling,
@@ -15,6 +16,21 @@ from jax_scaled_arithmetics.lax.base_scaling_primitives import (
 
 
 class SetScalingPrimitiveTests(chex.TestCase):
+    @parameterized.parameters(
+        {"npapi": np},
+        {"npapi": jnp},
+    )
+    def test__set_scaling_primitive__scaled_array__eager_mode(self, npapi):
+        values = scaled_array([-1.0, 2.0], 2.0, dtype=np.float16, npapi=npapi)
+        scale = npapi.float16(4)
+        output = set_scaling(values, scale)
+        assert isinstance(output, ScaledArray)
+        # No implicit promotion to JAX array when not necessary.
+        assert isinstance(output.data, npapi.ndarray)
+        assert isinstance(output.scale, (npapi.number, npapi.ndarray))
+        npt.assert_equal(output.scale, npapi.float16(4))
+        npt.assert_array_equal(output, values)
+
     @chex.variants(with_jit=True, without_jit=True)
     def test__set_scaling_primitive__proper_result_without_autoscale(self):
         def fn(arr, scale):
@@ -24,6 +40,8 @@ class SetScalingPrimitiveTests(chex.TestCase):
         arr = jnp.array([2, 3], dtype=np.float32)
         scale = jnp.array(4, dtype=np.float32)
         out = fn(arr, scale)
+        # Scale input ignored => forward same array.
+        assert isinstance(out, jnp.ndarray)
         npt.assert_array_equal(out, arr)
 
     @chex.variants(with_jit=True, without_jit=False)
@@ -68,6 +86,16 @@ class SetScalingPrimitiveTests(chex.TestCase):
 
 
 class StopScalingPrimitiveTests(chex.TestCase):
+    @parameterized.parameters(
+        {"npapi": np},
+        {"npapi": jnp},
+    )
+    def test__stop_scaling_primitive__scaled_array__eager_mode(self, npapi):
+        values = scaled_array([-1.0, 2.0], 2.0, dtype=np.float16, npapi=npapi)
+        output = stop_scaling(values)
+        assert isinstance(output, npapi.ndarray)
+        npt.assert_array_equal(output, values)
+
     @chex.variants(with_jit=True, without_jit=True)
     def test__stop_scaling_primitive__proper_result_without_autoscale(self):
         def fn(arr):
@@ -131,3 +159,23 @@ class GetDataScalePrimitiveTests(chex.TestCase):
         data, scale = get_data_scale(np.asarray(arr))
         npt.assert_array_equal(data, arr)
         npt.assert_almost_equal(scale, 1)
+
+
+class RebalancingOpsTests(chex.TestCase):
+    @parameterized.parameters(
+        {"npapi": np},
+        {"npapi": jnp},
+    )
+    def test__rebalance_op__normal_array__eagermode(self, npapi):
+        values = npapi.array([-1, 2], dtype=np.float16)
+        output = rebalance(values, np.float16(2))
+        # Same Python array object forwarded.
+        assert output is values
+
+    def test__rebalance_op__scaled_array__eagermode(self):
+        arr_in = scaled_array([2, 3], np.float16(4), dtype=np.float16)
+        scale_in = np.float16(0.5)
+        arr_out = rebalance(arr_in, scale_in)
+        assert isinstance(arr_out, ScaledArray)
+        npt.assert_array_equal(arr_out.scale, arr_in.scale * scale_in)
+        npt.assert_array_equal(arr_out, arr_in)

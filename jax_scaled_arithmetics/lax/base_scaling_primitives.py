@@ -33,6 +33,22 @@ def set_scaling(values: Array, scale: Array) -> Array:
 
 
 def set_scaling_impl(values: Array, scale: Array) -> Array:
+    """Set scaling general implementation.
+
+    Need to work on the following inputs combinations:
+        - (Array, Array) -> Array
+        - (ScaledArray, Array) -> ScaledArray
+        - (ScaledArray, ScaledArray) -> ScaledArray
+    with Numpy or JAX arrays (and keep the proper type for output).
+    """
+    assert scale.shape == ()
+    if isinstance(values, ScaledArray):
+        # Automatic promotion should ensure we always get a scaled scalar here!
+        scale_value = asarray(scale)
+        # Rebalancing data tensor using the new scale.
+        data = values.data * (values.scale / scale_value).astype(values.dtype)
+        return ScaledArray(data, scale_value)
+    # No scaled array => no-op.
     return values
 
 
@@ -92,6 +108,8 @@ def stop_scaling(values: Array, dtype: Optional[DTypeLike] = None) -> Array:
 
 
 def stop_scaling_impl(values: Array, dtype: Optional[DTypeLike]) -> Array:
+    if isinstance(values, ScaledArray):
+        return values.to_array(dtype=dtype)
     if dtype is not None:
         values = values.astype(dtype)
     return values
@@ -179,3 +197,21 @@ get_data_scale_p.def_impl(get_data_scale_impl)
 mlir.register_lowering(get_data_scale_p, get_data_scale_mlir_lowering)
 # Register "scaled" translation.
 register_scaled_op(get_data_scale_p, scaled_get_data_scale)
+
+
+def rebalance(values: ScaledArray, rebalance_scale: Array) -> ScaledArray:
+    """Rebalance a ScaledArray with a scale component, i.e.
+    respectively divide/multiply the data/scale by the rebalance scale.
+
+    NOTE: no-op in normal JAX mode.
+
+    Args:
+        values: Array/ScaledArray to rebalance.
+        rebalance_scale: Rebalancing scale value.
+    Returns:
+        Array/ScaledArray rebalanced.
+    """
+    _, scale = get_data_scale(values)
+    assert scale.dtype == rebalance_scale.dtype
+    out_scale = scale * rebalance_scale
+    return set_scaling(values, out_scale)
