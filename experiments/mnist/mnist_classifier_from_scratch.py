@@ -35,7 +35,7 @@ def print_mean_std(name, v):
     # Always use np.float32, to avoid floating errors in descaling + stats.
     v = jsa.asarray(data, dtype=np.float32)
     m, s = np.mean(v), np.std(v)
-    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale:.4f})")
+    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale.dtype})")
 
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
@@ -45,40 +45,43 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
 def predict(params, inputs):
     activations = inputs
     for w, b in params[:-1]:
-        # jsa.ops.debug_callback(partial(print_mean_std, "W"), w)
-        # jsa.ops.debug_callback(partial(print_mean_std, "B"), b)
-        # (w,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "WGrad"), w)
+        jsa.ops.debug_callback(partial(print_mean_std, "W"), w)
+        jsa.ops.debug_callback(partial(print_mean_std, "B"), b)
+        (w,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "WGrad"), w)
 
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
         activations = jnp.maximum(outputs, 0)
+        jsa.ops.debug_callback(partial(print_mean_std, "Act"), activations)
         # activations = jsa.ops.dynamic_rescale_l2_grad(activations)
 
     final_w, final_b = params[-1]
-    logits = jnp.dot(activations, final_w) + final_b
+    logits = jnp.dot(activations, final_w)
+    jsa.ops.debug_callback(partial(print_mean_std, "Logits0"), logits)
+    logits = logits + final_b
 
-    jsa.ops.debug_callback(partial(print_mean_std, "Logits"), logits)
-    # (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
+    jsa.ops.debug_callback(partial(print_mean_std, "Logits1"), logits)
+    (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
 
     logits = jsa.ops.dynamic_rescale_l2_grad(logits)
     # logits = logits.astype(np.float32)
-    # (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
+    (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
 
     logits = logits - logsumexp(logits, axis=1, keepdims=True)
     jsa.ops.debug_callback(partial(print_mean_std, "Logits2"), logits)
-    (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
+    # (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
     return logits
 
 
 def loss(params, batch):
     inputs, targets = batch
     preds = predict(params, inputs)
-    jsa.ops.debug_callback(partial(print_mean_std, "Preds"), preds)
+    # jsa.ops.debug_callback(partial(print_mean_std, "Preds"), preds)
     loss = jnp.sum(preds * targets, axis=1)
     # loss = jsa.ops.dynamic_rescale_l2(loss)
-    jsa.ops.debug_callback(partial(print_mean_std, "LOSS1"), loss)
+    # jsa.ops.debug_callback(partial(print_mean_std, "LOSS1"), loss)
     loss = -jnp.mean(loss)
-    jsa.ops.debug_callback(partial(print_mean_std, "LOSS2"), loss)
+    # jsa.ops.debug_callback(partial(print_mean_std, "LOSS2"), loss)
     return loss
     return -jnp.mean(jnp.sum(preds * targets, axis=1))
 
@@ -92,7 +95,7 @@ def accuracy(params, batch):
 
 if __name__ == "__main__":
     layer_sizes = [784, 1024, 1024, 10]
-    param_scale = 1.0
+    param_scale = 2.0
     step_size = 0.001
     num_epochs = 10
     batch_size = 128
@@ -129,8 +132,8 @@ if __name__ == "__main__":
             for (w, b), (dw, db) in zip(params, grads)
         ]
 
-    # num_batches = 4
-    # num_epochs = 2
+    num_batches = 1
+    num_epochs = 1
     for epoch in range(num_epochs):
         # print("EPOCH:", epoch)
         start_time = time.time()
