@@ -92,6 +92,28 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         assert z.scale.dtype == sdtype
         npt.assert_array_almost_equal(z, expected_z, decimal=4)
 
+    @chex.variants(with_jit=True, without_jit=True)
+    @parameterized.product(
+        prim=[lax.add_p, lax.sub_p, lax.mul_p, lax.min_p, lax.max_p],
+        dtype=[np.float16, np.float32],
+        sdtype=[np.float16, np.float32],
+    )
+    def test__scaled_binary_op__proper_zero_scale_handling(self, prim, dtype, sdtype):
+        scaled_op, _ = find_registered_scaled_op(prim)
+        # NOTE: direct construction to avoid weirdity between NumPy array and scalar!
+        x = ScaledArray(np.array([-1.0, 2.0], dtype), sdtype(0.0))
+        y = ScaledArray(np.array([1.5, 4.5], dtype), sdtype(0.0))
+        # Ensure scale factor has the right dtype.
+        assert x.scale.dtype == sdtype
+        assert y.scale.dtype == sdtype
+
+        z = self.variant(scaled_op)(x, y)
+        expected_z = prim.bind(np.asarray(x), np.asarray(y))
+
+        assert z.dtype == x.dtype
+        assert z.scale.dtype == sdtype
+        npt.assert_array_almost_equal(z, expected_z, decimal=4)
+
     @parameterized.parameters(
         {"prim": lax.add_p},
         {"prim": lax.sub_p},

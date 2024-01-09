@@ -2,6 +2,8 @@
 from enum import IntEnum
 from typing import Any, Dict
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from numpy.typing import NDArray
 
@@ -77,3 +79,26 @@ def pow2_round(val: Array, mode: Pow2RoundMode = Pow2RoundMode.DOWN) -> Array:
     elif mode == Pow2RoundMode.UP:
         return pow2_round_up(val)
     raise NotImplementedError(f"Unsupported power-of-2 rounding mode '{mode}'.")
+
+
+def safe_div(lhs: Array, rhs: Array) -> Array:
+    """Safe (scalar) div: if rhs is zero, returns zero."""
+    assert lhs.shape == ()
+    assert rhs.shape == ()
+    # assert lhs.dtype == rhs.dtype
+    # Numpy inputs => direct computation.
+    is_npy_inputs = isinstance(lhs, (np.number, np.ndarray)) and isinstance(rhs, (np.number, np.ndarray))
+    if is_npy_inputs:
+        return np.divide(lhs, rhs, out=np.array(0, dtype=rhs.dtype), where=rhs != 0)
+    # JAX general implementation.
+    return jax.lax.select(rhs == 0, rhs, jnp.divide(lhs, rhs))
+
+
+def safe_reciprocal(val: Array) -> Array:
+    """Safe (scalar) reciprocal: if val is zero, returns zero."""
+    assert val.shape == ()
+    # Numpy inputs => direct computation.
+    if isinstance(val, (np.number, np.ndarray)):
+        return np.reciprocal(val, out=np.array(0, dtype=val.dtype), where=val != 0)
+    # JAX general implementation.
+    return jax.lax.select(val == 0, val, jax.lax.reciprocal(val))

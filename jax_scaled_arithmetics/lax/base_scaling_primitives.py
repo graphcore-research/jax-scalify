@@ -14,6 +14,8 @@ from jax_scaled_arithmetics.core import (
     asarray,
     is_static_one_scalar,
     register_scaled_op,
+    safe_div,
+    safe_reciprocal,
 )
 
 set_scaling_p = core.Primitive("set_scaling_p")
@@ -24,6 +26,9 @@ input, just returning unchanged the `data` component.
 
 In JAX Scaled Arithmetics/AutoScale mode, it will rebalance the data term to
 return a ScaledArray semantically equivalent.
+
+NOTE: there is specific corner case of passing zero to `set_scaling`. In this
+situation, the tensor is assumed to be zeroed by the user.
 """
 
 
@@ -46,7 +51,7 @@ def set_scaling_impl(values: Array, scale: Array) -> Array:
         # Automatic promotion should ensure we always get a scaled scalar here!
         scale_value = asarray(scale)
         # Rebalancing data tensor using the new scale.
-        data = values.data * (values.scale / scale_value).astype(values.dtype)
+        data = values.data * safe_div(values.scale, scale_value).astype(values.dtype)
         return ScaledArray(data, scale_value)
     # No scaled array => no-op.
     return values
@@ -75,9 +80,9 @@ def scaled_set_scaling(values: ScaledArray, scale: ScaledArray) -> ScaledArray:
     scale_value = asarray(scale)
     if not isinstance(values, ScaledArray):
         # Simple case, with no pre-existing scale.
-        return ScaledArray(values / scale_value.astype(values.dtype), scale_value)
+        return ScaledArray(values * safe_reciprocal(scale_value.astype(values.dtype)), scale_value)
     # Rebalancing data tensor using the new scale.
-    data = values.data * (values.scale / scale_value).astype(values.dtype)
+    data = values.data * safe_div(values.scale, scale_value).astype(values.dtype)
     return ScaledArray(data, scale_value)
 
 

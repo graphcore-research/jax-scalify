@@ -32,6 +32,22 @@ class SetScalingPrimitiveTests(chex.TestCase):
         npt.assert_array_equal(output, values)
 
     @chex.variants(with_jit=True, without_jit=True)
+    @parameterized.parameters(
+        {"arr": np.array([-1.0, 2.0], dtype=np.float32)},
+        {"arr": scaled_array([-1.0, 2.0], 1.0, dtype=np.float16)},
+        {"arr": scaled_array([-1.0, 2.0], 0.0, dtype=np.float32)},
+    )
+    def test__set_scaling_primitive__zero_scaling(self, arr):
+        def fn(arr, scale):
+            return set_scaling(arr, scale)
+
+        scale = np.array(0, dtype=arr.dtype)
+        out = self.variant(autoscale(fn))(arr, scale)
+        assert isinstance(out, ScaledArray)
+        npt.assert_array_almost_equal(out.scale, 0)
+        npt.assert_array_almost_equal(out.data, 0)
+
+    @chex.variants(with_jit=True, without_jit=True)
     def test__set_scaling_primitive__proper_result_without_autoscale(self):
         def fn(arr, scale):
             return set_scaling(arr, scale)

@@ -78,7 +78,7 @@ def dynamic_rescale_l2_base(arr: ScaledArray) -> ScaledArray:
     data_sq = jax.lax.integer_pow(data.astype(np.float32), 2)
     axes = tuple(range(data.ndim))
     # Get L2 norm + pow2 rounding.
-    norm = jax.lax.sqrt(jax.lax.reduce_sum_p.bind(data_sq, axes=axes)) / data.size
+    norm = jax.lax.sqrt(jax.lax.reduce_sum_p.bind(data_sq, axes=axes) / data.size)
     norm = pow2_round(norm.astype(scale.dtype))
     # Rebalancing based on norm.
     return rebalance(arr, norm)

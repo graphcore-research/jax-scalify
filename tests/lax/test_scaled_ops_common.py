@@ -81,6 +81,15 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         npt.assert_array_equal(z.scale, y.scale)
         npt.assert_array_almost_equal(z, lax.concatenate([np.asarray(x), np.asarray(y)], dimension=0))
 
+    def test__scaled_concatenate__zero_input_scales(self):
+        x = scaled_array(self.rs.rand(2, 3), 0.0, dtype=np.float16)
+        y = scaled_array(self.rs.rand(5, 3), 0.0, dtype=np.float16)
+        z = scaled_concatenate([x, y], dimension=0)
+        assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
+        npt.assert_array_equal(z.scale, 0)
+        npt.assert_array_almost_equal(z, lax.concatenate([np.asarray(x), np.asarray(y)], dimension=0))
+
     def test__scaled_convert_element_type__proper_scaling(self):
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
         z = scaled_convert_element_type(x, new_dtype=np.float16)
