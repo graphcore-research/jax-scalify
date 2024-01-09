@@ -44,6 +44,8 @@ def predict(params, inputs):
 
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
+    # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
+    logits = jsa.ops.dynamic_rescale_l2_grad(logits)
     return logits - logsumexp(logits, axis=1, keepdims=True)
 
 
