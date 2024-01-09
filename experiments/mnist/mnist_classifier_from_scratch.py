@@ -35,7 +35,7 @@ def print_mean_std(name, v):
     # Always use np.float32, to avoid floating errors in descaling + stats.
     v = jsa.asarray(data, dtype=np.float32)
     m, s = np.mean(v), np.std(v)
-    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale.dtype})")
+    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale:.4f})")
 
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
