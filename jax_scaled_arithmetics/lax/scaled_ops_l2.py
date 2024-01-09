@@ -14,6 +14,7 @@ from jax_scaled_arithmetics.core import (
     get_autoscale_config,
     pow2_round,
     register_scaled_op,
+    safe_div,
 )
 
 from .scaled_ops_common import check_scalar_scales, promote_scale_types
@@ -32,14 +33,14 @@ def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArra
     # More stable than direct L2 norm, to avoid scale overflow.
     ABscale_max = lax.max(A.scale, B.scale)
     ABscale_min = lax.min(A.scale, B.scale)
-    ABscale_ratio = ABscale_min / ABscale_max
+    ABscale_ratio = safe_div(ABscale_min, ABscale_max)
     output_scale = ABscale_max * lax.sqrt(1 + ABscale_ratio * ABscale_ratio)
     # Transform back to power-of-2
     output_scale = pow2_round(output_scale, pow2_rounding_mode)
     # Output dtype => promotion of A and B dtypes.
     outdtype = jnp.promote_types(A.dtype, B.dtype)
-    Arescale = (A.scale / output_scale).astype(outdtype)
-    Brescale = (B.scale / output_scale).astype(outdtype)
+    Arescale = safe_div(A.scale, output_scale).astype(outdtype)
+    Brescale = safe_div(B.scale, output_scale).astype(outdtype)
     # check correct type output if mismatch between data and scale precision
     output_data = binary_op(Arescale * A.data, Brescale * B.data)
     return ScaledArray(output_data, output_scale)

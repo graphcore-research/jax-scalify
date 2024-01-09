@@ -23,4 +23,4 @@ from .interpreters import (  # noqa: F401
     register_scaled_op,
 )
 from .typing import Array, ArrayTypes, get_numpy_api  # noqa: F401
-from .utils import Pow2RoundMode, pow2_round, pow2_round_down, pow2_round_up  # noqa: F401
+from .utils import Pow2RoundMode, pow2_round, pow2_round_down, pow2_round_up, safe_div, safe_reciprocal  # noqa: F401

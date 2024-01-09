@@ -16,6 +16,7 @@ from jax_scaled_arithmetics.core import (
     as_scaled_array,
     get_scale_dtype,
     is_static_zero,
+    safe_div,
 )
 
 from .base_scaling_primitives import scaled_set_scaling
@@ -89,7 +90,7 @@ def scaled_concatenate(operands: Sequence[ScaledArray], dimension: int) -> Scale
     # TODO: explore alternative strategies?
     outdtype = operands[0].dtype
     scale_max = jnp.max(scales)
-    datas = [v.data * (v.scale / scale_max).astype(outdtype) for v in operands]
+    datas = [v.data * safe_div(v.scale, scale_max).astype(outdtype) for v in operands]
     data_concat = lax.concatenate(datas, dimension=dimension)
     return ScaledArray(data_concat, scale_max)
 
@@ -219,8 +220,8 @@ def scaled_minmax(prim: jax.core.Primitive, lhs: ScaledArray, rhs: ScaledArray) 
     output_scale = lax.max(lhs.scale, rhs.scale)
     # TODO: isolate this "binary" rescale logic into separate function.
     outdtype = jnp.promote_types(lhs.dtype, rhs.dtype)
-    lhs_rescale = (lhs.scale / output_scale).astype(outdtype)
-    rhs_rescale = (rhs.scale / output_scale).astype(outdtype)
+    lhs_rescale = safe_div(lhs.scale, output_scale).astype(outdtype)
+    rhs_rescale = safe_div(rhs.scale, output_scale).astype(outdtype)
     output_data = prim.bind(lhs_rescale * lhs.data, rhs_rescale * rhs.data)
     return ScaledArray(output_data, output_scale)
 

@@ -1,11 +1,12 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import chex
+import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
-from jax_scaled_arithmetics.core import pow2_round_down, pow2_round_up
-from jax_scaled_arithmetics.core.utils import _exponent_bits_mask, get_mantissa
+from jax_scaled_arithmetics.core import Array, pow2_round_down, pow2_round_up
+from jax_scaled_arithmetics.core.utils import _exponent_bits_mask, get_mantissa, safe_div, safe_reciprocal
 
 
 class Pow2RoundingUtilTests(chex.TestCase):
@@ -54,3 +55,38 @@ class Pow2RoundingUtilTests(chex.TestCase):
         assert pow2_val.dtype == val.dtype
         assert type(pow2_val) in {type(val), np.ndarray}
         npt.assert_equal(pow2_val, exp)
+
+
+class SafeDivOpTests(chex.TestCase):
+    @parameterized.parameters(
+        {"lhs": np.float16(0), "rhs": np.float16(0)},
+        {"lhs": np.float32(0), "rhs": np.float32(0)},
+        {"lhs": np.float16(2), "rhs": np.float16(0)},
+        {"lhs": np.float32(4), "rhs": np.float32(0)},
+    )
+    def test__safe_div__zero_div__numpy_inputs(self, lhs, rhs):
+        out = safe_div(lhs, rhs)
+        assert isinstance(out, (np.number, np.ndarray))
+        assert out.dtype == lhs.dtype
+        npt.assert_equal(out, 0)
+
+    @parameterized.parameters(
+        {"lhs": np.float16(0), "rhs": jnp.float16(0)},
+        {"lhs": jnp.float32(0), "rhs": np.float32(0)},
+        {"lhs": jnp.float16(2), "rhs": np.float16(0)},
+        {"lhs": np.float32(4), "rhs": jnp.float32(0)},
+    )
+    def test__safe_div__zero_div__jax_inputs(self, lhs, rhs):
+        out = safe_div(lhs, rhs)
+        assert isinstance(out, Array)
+        assert out.dtype == lhs.dtype
+        npt.assert_almost_equal(out, 0)
+
+    @parameterized.parameters(
+        {"val": np.float16(0)},
+        {"val": jnp.float16(0)},
+    )
+    def test__safe_reciprocal__zero_div(self, val):
+        out = safe_reciprocal(val)
+        assert out.dtype == val.dtype
+        npt.assert_almost_equal(out, 0)
