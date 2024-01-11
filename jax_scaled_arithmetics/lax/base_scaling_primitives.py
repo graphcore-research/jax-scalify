@@ -189,7 +189,6 @@ def get_data_scale_abstract_eval(values: core.ShapedArray) -> core.ShapedArray:
         return (values.data, values.scale)
     # Use array dtype for scale by default.
     scale_dtype = get_scale_dtype() or values.dtype
-    print(scale_dtype)
     return values, core.ShapedArray((), dtype=scale_dtype)
 
 

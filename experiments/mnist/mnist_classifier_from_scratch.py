@@ -68,7 +68,9 @@ if __name__ == "__main__":
     step_size = 0.001
     num_epochs = 10
     batch_size = 128
+
     training_dtype = np.float16
+    scale_dtype = np.float32
 
     train_images, train_labels, test_images, test_labels = datasets.mnist()
     num_train = train_images.shape[0]
@@ -86,8 +88,8 @@ if __name__ == "__main__":
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray` and proper dtype.
-    params = jsa.as_scaled_array(params)
-    params = jax.tree_map(lambda v: v.astype(training_dtype), params)
+    params = jsa.as_scaled_array(params, scale=scale_dtype(1))
+    params = jax.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
     @jsa.autoscale
@@ -100,10 +102,10 @@ if __name__ == "__main__":
         for _ in range(num_batches):
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
-            batch = jsa.as_scaled_array(batch)
-            batch = jax.tree_map(lambda v: v.astype(training_dtype), batch)
+            batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
+            batch = jax.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
-            with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN):
+            with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
                 params = update(params, batch)
 
         epoch_time = time.time() - start_time

@@ -104,6 +104,16 @@ class ScaledArrayDataclassTests(chex.TestCase):
         npt.assert_array_equal(out, sarr.data * sarr.scale)
 
     @parameterized.parameters(
+        {"npapi": np},
+        {"npapi": jnp},
+    )
+    def test__scaled_array__astype(self, npapi):
+        arr_in = ScaledArray(data=npapi.array([1.0, 2.0], dtype=np.float16), scale=npapi.array(1, dtype=np.int32))
+        arr_out = arr_in.astype(np.float32)
+        assert arr_out.dtype == np.float32
+        assert arr_out.scale.dtype == arr_in.scale.dtype
+
+    @parameterized.parameters(
         {"val": 0.25},
     )
     def test__make_scaled_scalar__float_input(self, val):
