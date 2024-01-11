@@ -35,6 +35,7 @@ def print_mean_std(name, v):
     # Always use np.float32, to avoid floating errors in descaling + stats.
     v = jsa.asarray(data, dtype=np.float32)
     m, s = np.mean(v), np.std(v)
+    # print(data)
     print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale:.4f})")
 
 
@@ -119,10 +120,10 @@ if __name__ == "__main__":
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray` and proper dtype.
-    params = jsa.as_scaled_array(params, scale=scale_dtype(1))
+    params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
     params = jax.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
-    @jit
+    # @jit
     @jsa.autoscale
     def update(params, batch):
         grads = grad(loss)(params, batch)
@@ -150,9 +151,9 @@ if __name__ == "__main__":
         epoch_time = time.time() - start_time
 
         # Evaluation in float32, for consistency.
-        raw_params = jsa.asarray(params, dtype=np.float32)
-        train_acc = accuracy(raw_params, (train_images, train_labels))
-        test_acc = accuracy(raw_params, (test_images, test_labels))
-        print(f"Epoch {epoch} in {epoch_time:0.2f} sec")
-        print(f"Training set accuracy {train_acc:0.5f}")
-        print(f"Test set accuracy {test_acc:0.5f}")
+        # raw_params = jsa.asarray(params, dtype=np.float32)
+        # train_acc = accuracy(raw_params, (train_images, train_labels))
+        # test_acc = accuracy(raw_params, (test_images, test_labels))
+        # print(f"Epoch {epoch} in {epoch_time:0.2f} sec")
+        # print(f"Training set accuracy {train_acc:0.5f}")
+        # print(f"Test set accuracy {test_acc:0.5f}")
