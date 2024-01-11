@@ -52,7 +52,8 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
         jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
         # Need 3 equations: 2 mul + 1 cast.
-        assert len(jaxpr.eqns) == 3
+        # TODO: additional mul in `safe_check_dtypes` mode.
+        assert len(jaxpr.eqns) in {3, 4}
         # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
         assert jaxpr.invars[0].aval.shape == scaled_input.shape
         assert jaxpr.invars[1].aval.shape == ()
@@ -67,7 +68,8 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
         jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
         # One main jit equation.
-        assert len(jaxpr.eqns) == 1
+        # TODO: additional mul in `safe_check_dtypes` mode.
+        assert len(jaxpr.eqns) in {1, 2}
         eqn = jaxpr.eqns[0]
         assert eqn.primitive.name in ("pjit", "xla_call")
         assert eqn.params["name"] == "myfunc"
