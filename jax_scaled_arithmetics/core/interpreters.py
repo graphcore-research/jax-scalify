@@ -15,7 +15,7 @@ from jax._src.custom_derivatives import (
 )
 from jax._src.util import safe_map
 
-from .datatype import NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
+from .datatype import DTypeLike, NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
 from .utils import Pow2RoundMode
 
 
@@ -25,9 +25,14 @@ class AutoScaleConfig:
 
     NOTE: this config can be locally changed using a Python context manager:
     `with AutoScaleConfig(...):`
+
+    Args:
+        rounding_mode: Power-of-2 rounding mode.
+        scale_dtype: Scale (default) datatype.
     """
 
     rounding_mode: Pow2RoundMode = Pow2RoundMode.DOWN
+    scale_dtype: DTypeLike = None
 
     def __enter__(self):
         global _autoscale_config_stack

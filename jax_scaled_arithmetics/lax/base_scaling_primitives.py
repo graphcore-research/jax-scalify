@@ -1,4 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
+import logging
 from typing import Optional, Sequence, Union
 
 import numpy as np
@@ -12,6 +13,7 @@ from jax_scaled_arithmetics.core import (
     ScaledArray,
     ScaledPrimitiveType,
     asarray,
+    get_autoscale_config,
     is_static_one_scalar,
     register_scaled_op,
     safe_div,
@@ -163,6 +165,11 @@ from a ScaledArray.
 """
 
 
+def get_scale_dtype() -> Optional[DTypeLike]:
+    """Get the scale dtype, if set in the AutoScale config."""
+    return get_autoscale_config().scale_dtype
+
+
 def get_data_scale(values: Array) -> Array:
     """`get_data_scale` primitive call method."""
     return get_data_scale_p.bind(values)
@@ -171,14 +178,19 @@ def get_data_scale(values: Array) -> Array:
 def get_data_scale_impl(values: Array) -> Array:
     if isinstance(values, ScaledArray):
         return (values.data, values.scale)
-    scale = np.ones((), dtype=values.dtype)
+    # Use array dtype for scale by default.
+    scale_dtype = get_scale_dtype() or values.dtype
+    scale = np.ones((), dtype=scale_dtype)
     return values, scale
 
 
 def get_data_scale_abstract_eval(values: core.ShapedArray) -> core.ShapedArray:
     if isinstance(values, ScaledArray):
         return (values.data, values.scale)
-    return values, core.ShapedArray((), dtype=values.dtype)
+    # Use array dtype for scale by default.
+    scale_dtype = get_scale_dtype() or values.dtype
+    print(scale_dtype)
+    return values, core.ShapedArray((), dtype=scale_dtype)
 
 
 def get_data_scale_mlir_lowering(
@@ -186,12 +198,22 @@ def get_data_scale_mlir_lowering(
 ) -> Sequence[Union[ir.Value, Sequence[ir.Value]]]:
     # Just forwarding `values` term, adding a constant scalar scale(1).
     assert len(args) == 1
-    scale = ir_constant(np.ones((), dtype=ctx.avals_in[0].dtype))
+    assert len(ctx.avals_in) == 1
+    assert len(ctx.avals_out) == 2
+    # Scale dtype "decided" during initial JAX tracing.
+    scale_dtype = ctx.avals_out[1].dtype
+    scale = ir_constant(np.ones((), dtype=scale_dtype))
     return (args[0], scale)
 
 
 def scaled_get_data_scale(values: ScaledArray) -> Array:
     """Scaled `get_data_scale` implementation: return scale tensor."""
+    scale_dtype = get_scale_dtype()
+    # Mis-match may potentially create issues (i.e. not equivalent scale dtype after autoscale tracer)!
+    if scale_dtype != values.scale.dtype:
+        logging.warning(
+            f"Autoscale config scale dtype not matching ScaledArray scale dtype: '{values.scale.dtype}' vs '{scale_dtype}'. AutoScale graph transformation may fail because of that."
+        )
     return values.data, values.scale
 
 
