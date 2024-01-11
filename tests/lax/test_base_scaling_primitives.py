@@ -164,7 +164,7 @@ class GetDataScalePrimitiveTests(chex.TestCase):
             return get_data_scale(arr)
 
         fn = self.variant(autoscale(fn))
-        arr = scaled_array([2, 3], 4, dtype=np.float16)
+        arr = scaled_array([2, 3], np.float16(4), dtype=np.float16)
         data, scale = fn(arr)
         npt.assert_array_equal(data, arr.data)
         npt.assert_equal(scale, arr.scale)

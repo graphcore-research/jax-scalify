@@ -15,7 +15,7 @@ from jax._src.custom_derivatives import (
 )
 from jax._src.util import safe_map
 
-from .datatype import DTypeLike, NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
+from .datatype import Array, DTypeLike, NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
 from .utils import Pow2RoundMode
 
 
@@ -88,6 +88,12 @@ def _get_aval(val: Any) -> core.ShapedArray:
     if hasattr(val, "aval"):
         return val.aval
     return core.ShapedArray(shape=val.shape, dtype=val.dtype)
+
+
+def _get_data(val: Any) -> Array:
+    if isinstance(val, ScaledArray):
+        return val.data
+    return val
 
 
 def promote_scalar_to_scaled_array(val: Any) -> ScaledArray:
@@ -192,6 +198,8 @@ def autoscale(fun):
 
 def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
     env: Dict[core.Var, ScaledArray] = {}
+    # Check dtype consistency between normal and scaled modes.
+    safe_check_dtypes: bool = False
 
     def read(var):
         if type(var) is core.Literal:
@@ -209,6 +217,13 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
         # No promotion rule => just return as such.
         return val
 
+    def jaxpr_eqn_bind(eqn: core.JaxprEqn, invals: Sequence[core.ShapedArray]) -> Sequence[core.ShapedArray]:
+        subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
+        outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
+        if not eqn.primitive.multiple_results:
+            outvals = [outvals]
+        return outvals
+
     # A few initial checks to make sure there is consistency.
     assert len(jaxpr.invars) == len(args)
     safe_map(write, jaxpr.invars, args)
@@ -223,19 +238,31 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
 
         if not any_scaled_inputs and scaled_prim_type != ScaledPrimitiveType.ALWAYS_SCALE:
             # Using normal JAX primitive: no scaled inputs, and not always scale rule.
-            subfuns, bind_params = eqn.primitive.get_bind_params(eqn.params)
-            outvals = eqn.primitive.bind(*subfuns, *invals, **bind_params)
+            outvals = jaxpr_eqn_bind(eqn, invals)
         elif scaled_prim_fn is None:
             raise NotImplementedError(
                 f"'{eqn.primitive}' JAX primitive does not have an implementation for ScaledArray inputs yet."
             )
         else:
             # Using scaled primitive. Automatic promotion of inputs to scaled array, when possible.
-            invals = list(map(promote_to_scaled_array, invals))
-            outvals = scaled_prim_fn(*invals, **eqn.params)
+            scaled_invals = list(map(promote_to_scaled_array, invals))
+            outvals = scaled_prim_fn(*scaled_invals, **eqn.params)
+            if not eqn.primitive.multiple_results:
+                outvals = [outvals]
 
-        if not eqn.primitive.multiple_results:
-            outvals = [outvals]
+            # Check consistency with normal JAX mode. Help catching dtype promotion errors.
+            # NOTE: ignoring when no outputs! (e.g. debug_callback).
+            if safe_check_dtypes and len(outvals) > 0:
+                ref_outvals = jaxpr_eqn_bind(eqn, [_get_data(v) for v in invals])
+                data_outvals = [_get_data(v) for v in outvals]
+                # Check scaled dtypes == ref dtypes.
+                ref_dtypes = tuple(v.dtype for v in ref_outvals)
+                data_dtypes = tuple(v.dtype for v in data_outvals)
+                if data_dtypes != ref_dtypes:
+                    raise ValueError(
+                        f"Output dtype of '{eqn.primitive}' scaled translation is not consistent with the JAX reference primitive implementation: {data_dtypes} vs {ref_dtypes}."
+                    )
+
         safe_map(write, eqn.outvars, outvals)
 
     outvals = safe_map(read, jaxpr.outvars)
