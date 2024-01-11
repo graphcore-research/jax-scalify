@@ -237,9 +237,11 @@ class AutoScaleInterpreterTests(chex.TestCase):
         cfg = get_autoscale_config()
         assert isinstance(cfg, AutoScaleConfig)
         assert cfg.rounding_mode == Pow2RoundMode.DOWN
+        assert cfg.scale_dtype is None
 
     def test__autoscale_config__context_manager(self):
-        with AutoScaleConfig(rounding_mode=Pow2RoundMode.NONE):
+        with AutoScaleConfig(rounding_mode=Pow2RoundMode.NONE, scale_dtype=np.float32):
             cfg = get_autoscale_config()
             assert isinstance(cfg, AutoScaleConfig)
             assert cfg.rounding_mode == Pow2RoundMode.NONE
+            assert cfg.scale_dtype == np.float32
