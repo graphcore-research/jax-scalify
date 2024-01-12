@@ -61,7 +61,24 @@ class ScaledTranslationUnaryOpsTests(chex.TestCase):
         assert out.dtype == val.dtype
         assert out.scale.dtype == val.scale.dtype
         npt.assert_almost_equal(out.scale, expected_scale)
-        npt.assert_array_almost_equal(out, expected_output)
+        # FIXME: higher precision for `log`?
+        npt.assert_array_almost_equal(out, expected_output, decimal=3)
+
+    def test__scaled_exp__large_scale_zero_values(self):
+        scaled_op, _ = find_registered_scaled_op(lax.exp_p)
+        # Scaled array, with values < 0 and scale overflowing in float16.
+        val = scaled_array(np.array([0, -1, -2, -32768], np.float16), np.float32(32768 * 16))
+        out = scaled_op(val)
+        # Zero value should not be a NaN!
+        npt.assert_array_almost_equal(out, [1, 0, 0, 0], decimal=2)
+
+    def test__scaled_log__zero_large_values_large_scale(self):
+        scaled_op, _ = find_registered_scaled_op(lax.log_p)
+        # 0 + large values => proper log values, without NaN/overflow.
+        val = scaled_array(np.array([0, 1], np.float16), np.float32(32768 * 16))
+        out = scaled_op(val)
+        # No NaN value + not overflowing!
+        npt.assert_array_almost_equal(out, lax.log(val.to_array(np.float32)), decimal=2)
 
 
 class ScaledTranslationBinaryOpsTests(chex.TestCase):

@@ -3,15 +3,24 @@ import chex
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
+from jax import lax
 
 from jax_scaled_arithmetics.core import autoscale, scaled_array
 
 
-class ScaledTranslationPrimitivesTests(chex.TestCase):
+class ScaledScipyHighLevelMethodsTests(chex.TestCase):
     def setUp(self):
         super().setUp()
         # Use random state for reproducibility!
         self.rs = np.random.RandomState(42)
+
+    def test__lax_full_like__zero_scale(self):
+        def fn(a):
+            return lax.full_like(a, 0)
+
+        a = scaled_array(np.random.rand(3, 5).astype(np.float32), np.float32(1))
+        autoscale(fn)(a)
+        # FIMXE/TODO: what should be the expected result?
 
     @parameterized.parameters(
         {"dtype": np.float32},
