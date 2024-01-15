@@ -261,12 +261,23 @@ def scaled_op_default_translation(
 
 @core.register_scaled_lax_op
 def scaled_exp(val: ScaledArray) -> ScaledArray:
-    return scaled_op_default_translation(lax.exp_p, [val])
+    assert isinstance(val, ScaledArray)
+    # Estimate in FP32, to avoid NaN when "descaling" the array.
+    # Otherwise: issues for representing properly 0 and +-Inf.
+    arr = val.to_array(dtype=np.float32).astype(val.dtype)
+    scale = np.array(1, dtype=val.scale.dtype)
+    return ScaledArray(lax.exp(arr), scale)
 
 
 @core.register_scaled_lax_op
 def scaled_log(val: ScaledArray) -> ScaledArray:
-    return scaled_op_default_translation(lax.log_p, [val])
+    assert isinstance(val, ScaledArray)
+    # Log of data & scale components.
+    log_data = lax.log(val.data)
+    log_scale = lax.log(val.scale).astype(val.dtype)
+    data = log_data + log_scale
+    scale = np.array(1, dtype=val.scale.dtype)
+    return ScaledArray(data, scale)
 
 
 @core.register_scaled_lax_op

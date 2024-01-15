@@ -25,10 +25,23 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import numpy.random as npr
-from jax import grad, jit
-from jax.scipy.special import logsumexp
+from jax import grad, jit, lax
 
 import jax_scaled_arithmetics as jsa
+
+# from jax.scipy.special import logsumexp
+
+
+def logsumexp(a, axis=None, keepdims=False):
+    dims = (axis,)
+    amax = jnp.max(a, axis=dims, keepdims=keepdims)
+    # FIXME: not proper scale propagation, introducing NaNs
+    # amax = lax.stop_gradient(lax.select(jnp.isfinite(amax), amax, lax.full_like(amax, 0)))
+    amax = lax.stop_gradient(amax)
+    out = lax.sub(a, amax)
+    out = lax.exp(out)
+    out = lax.add(lax.log(jnp.sum(out, axis=dims, keepdims=keepdims)), amax)
+    return out
 
 
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
@@ -46,7 +59,8 @@ def predict(params, inputs):
     logits = jnp.dot(activations, final_w) + final_b
     # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
     logits = jsa.ops.dynamic_rescale_l2_grad(logits)
-    return logits - logsumexp(logits, axis=1, keepdims=True)
+    logits = logits - logsumexp(logits, axis=1, keepdims=True)
+    return logits
 
 
 def loss(params, batch):
@@ -88,7 +102,7 @@ if __name__ == "__main__":
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray` and proper dtype.
-    params = jsa.as_scaled_array(params, scale=scale_dtype(1))
+    params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
     params = jax.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
