@@ -9,37 +9,37 @@ from jax_scaled_arithmetics.lax import get_data_scale, rebalance
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(0,))
-def fn_with_identity_grad(f, arg):
+def fn_fwd_identity_bwd(f, arg):
     """Function with identity bwd/grad."""
     return f(arg)
 
 
-def fn_with_identity_grad_fwd(f, arg):
+def fn_fwd_identity_bwd_fwd(f, arg):
     return arg, None
 
 
-def fn_with_identity_grad_bwd(f, _, grad):
+def fn_fwd_identity_bwd_bwd(f, _, grad):
     return (grad,)
 
 
-fn_with_identity_grad.defvjp(fn_with_identity_grad_fwd, fn_with_identity_grad_bwd)
+fn_fwd_identity_bwd.defvjp(fn_fwd_identity_bwd_fwd, fn_fwd_identity_bwd_bwd)
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(0,))
-def fn_on_grad(f, arg):
+def fn_bwd_identity_fwd(f, arg):
     """Apply a function on the gradient/backward pass."""
     return arg
 
 
-def fn_on_grad_fwd(f, arg):
+def fn_bwd_identity_fwd_fwd(f, arg):
     return arg, None
 
 
-def fn_on_grad_bwd(f, _, grad):
+def fn_bwd_identity_fwd_bwd(f, _, grad):
     return (f(grad),)
 
 
-fn_on_grad.defvjp(fn_on_grad_fwd, fn_on_grad_bwd)
+fn_bwd_identity_fwd.defvjp(fn_bwd_identity_fwd_fwd, fn_bwd_identity_fwd_bwd)
 
 
 def dynamic_rescale_max_base(arr: ScaledArray) -> ScaledArray:
@@ -97,11 +97,11 @@ def dynamic_rescale_l2_base(arr: ScaledArray) -> ScaledArray:
 
 
 # Dynamic rescale on fwd arrays.
-dynamic_rescale_max = partial(fn_with_identity_grad, dynamic_rescale_max_base)
-dynamic_rescale_l1 = partial(fn_with_identity_grad, dynamic_rescale_l1_base)
-dynamic_rescale_l2 = partial(fn_with_identity_grad, dynamic_rescale_l2_base)
+dynamic_rescale_max = partial(fn_fwd_identity_bwd, dynamic_rescale_max_base)
+dynamic_rescale_l1 = partial(fn_fwd_identity_bwd, dynamic_rescale_l1_base)
+dynamic_rescale_l2 = partial(fn_fwd_identity_bwd, dynamic_rescale_l2_base)
 
 # Dynamic rescale on gradients.
-dynamic_rescale_max_grad = partial(fn_on_grad, dynamic_rescale_max_base)
-dynamic_rescale_l1_grad = partial(fn_on_grad, dynamic_rescale_l1_base)
-dynamic_rescale_l2_grad = partial(fn_on_grad, dynamic_rescale_l2_base)
+dynamic_rescale_max_grad = partial(fn_bwd_identity_fwd, dynamic_rescale_max_base)
+dynamic_rescale_l1_grad = partial(fn_bwd_identity_fwd, dynamic_rescale_l1_base)
+dynamic_rescale_l2_grad = partial(fn_bwd_identity_fwd, dynamic_rescale_l2_base)
