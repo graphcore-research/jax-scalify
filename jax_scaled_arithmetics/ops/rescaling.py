@@ -51,7 +51,7 @@ def dynamic_rescale_max_base(arr: ScaledArray) -> ScaledArray:
     data_sq = jax.lax.abs(data)
     axes = tuple(range(data.ndim))
     # Get MAX norm + pow2 rounding.
-    norm = jax.lax.reduce_max_p.bind(data_sq, axes=axes)
+    norm = jax.lax.reduce_max_p.bind(data_sq, axes=axes) / (64)
     norm = jax.lax.max(pow2_round(norm).astype(scale.dtype), eps.astype(scale.dtype))
     # Rebalancing based on norm.
     return rebalance(arr, norm)

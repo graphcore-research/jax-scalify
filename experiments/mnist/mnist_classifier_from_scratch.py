@@ -28,8 +28,16 @@ import numpy.random as npr
 from jax import grad, jit, lax
 
 import jax_scaled_arithmetics as jsa
+from functools import partial
 
 # from jax.scipy.special import logsumexp
+
+def print_mean_std(name, v):
+    data, scale = jsa.lax.get_data_scale(v)
+    # Always use np.float32, to avoid floating errors in descaling + stats.
+    data = jsa.asarray(data, dtype=np.float32)
+    m, s, min, max = np.mean(data), np.std(data), np.min(data), np.max(data)
+    print(f"{name}: MEAN({m:.5f}) / STD({s:.5f}) / MIN({min:.5f}) / MAX({max:.5f}) / SCALE({scale:.5f})")
 
 
 def logsumexp(a, axis=None, keepdims=False):
@@ -47,6 +55,27 @@ def logsumexp(a, axis=None, keepdims=False):
 def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
     return [(scale * rng.randn(m, n), scale * rng.randn(n)) for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])]
 
+# jax.nn.logsumexp
+
+def one_hot_dot(logits, mask, axis: int):
+    size = logits.shape[axis]
+
+    mask = jsa.lax.rebalance(mask, np.float32(1./8.))
+
+    jsa.ops.debug_callback(partial(print_mean_std, "Logits"), logits)
+    (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
+    jsa.ops.debug_callback(partial(print_mean_std, "Mask"), mask)
+
+    r = jnp.sum(logits * mask, axis=axis)
+    jsa.ops.debug_callback(partial(print_mean_std, "Out"), r)
+    print("SIZE:", size, jsa.core.pow2_round_down(np.float32(size)))
+    (r,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "OutGrad"), r)
+
+
+    return r
+
+
+
 
 def predict(params, inputs):
     activations = inputs
@@ -58,14 +87,32 @@ def predict(params, inputs):
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
     # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
-    logits = jsa.ops.dynamic_rescale_l2_grad(logits)
-    logits = logits - logsumexp(logits, axis=1, keepdims=True)
+    # logits = jsa.ops.dynamic_rescale_l2_grad(logits)
+
+    # print("LOGITS", logits)
+    # (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad0"), logits)
+    logsumlogits = logsumexp(logits, axis=1, keepdims=True)
+    # (logsumlogits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsLogSumGrad"), logsumlogits)
+    logits = logits - logsumlogits
+    # (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad1"), logits)
+
+    # logits = jsa.ops.dynamic_rescale_l1_grad(logits)
     return logits
 
 
 def loss(params, batch):
     inputs, targets = batch
     preds = predict(params, inputs)
+    loss = one_hot_dot(preds, targets, axis=1)
+    # loss = jnp.sum(preds * targets, axis=1)s
+    # loss = jsa.ops.dynamic_rescale_l1_grad(loss)
+    (loss,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LossGrad2"), loss)
+    loss = -jnp.mean(loss)
+    jsa.ops.debug_callback(partial(print_mean_std, "Loss"), loss)
+    (loss,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LossGrad"), loss)
+
+
+    return loss
     return -jnp.mean(jnp.sum(preds * targets, axis=1))
 
 
@@ -110,6 +157,9 @@ if __name__ == "__main__":
     def update(params, batch):
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
+
+    num_batches = 2
+    num_epochs = 1
 
     for epoch in range(num_epochs):
         start_time = time.time()
