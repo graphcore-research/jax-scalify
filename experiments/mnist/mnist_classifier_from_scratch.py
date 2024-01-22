@@ -90,7 +90,7 @@ def update_experiments_json(filename, config, results):
 
 if __name__ == "__main__":
     # Param scales: 0.5, 1, 2, 4, 8
-    # Step size: 0.001, 0.002, 0.004, 0.008, 0.016
+    # Step size: 0.0005, 0.001, 0.002, 0.004, 0.008, 0.016, 0.03
 
     layer_sizes = [784, 1024, 1024, 10]
     param_scale = 1.0
@@ -98,8 +98,8 @@ if __name__ == "__main__":
     num_epochs = 10
     batch_size = 128
 
-    use_autoscale = True
-    training_dtype = np.float16
+    use_autoscale = False
+    training_dtype = np.float32
     scale_dtype = np.float32
 
     train_images, train_labels, test_images, test_labels = datasets.mnist()
