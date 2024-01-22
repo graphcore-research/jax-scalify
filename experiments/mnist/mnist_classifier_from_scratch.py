@@ -17,7 +17,8 @@
 The primary aim here is simplicity and minimal dependencies.
 """
 
-
+import json
+import os
 import time
 
 import datasets
@@ -76,13 +77,28 @@ def accuracy(params, batch):
     return jnp.mean(predicted_class == target_class)
 
 
+def update_experiments_json(filename, config, results):
+    print("Saving results in:", filename)
+    experiments = []
+    if os.path.exists(filename):
+        with open(filename) as f:
+            experiments = json.load(f)
+    experiments.append((config, results))
+    with open(filename, "w") as f:
+        json.dump(experiments, f, indent=4)
+
+
 if __name__ == "__main__":
+    # Param scales: 0.5, 1, 2, 4, 8
+    # Step size: 0.001, 0.002, 0.004, 0.008, 0.016
+
     layer_sizes = [784, 1024, 1024, 10]
     param_scale = 1.0
     step_size = 0.001
     num_epochs = 10
     batch_size = 128
 
+    use_autoscale = True
     training_dtype = np.float16
     scale_dtype = np.float32
 
@@ -102,21 +118,27 @@ if __name__ == "__main__":
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray` and proper dtype.
-    params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
+    if use_autoscale:
+        params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
     params = jax.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
-    @jsa.autoscale
     def update(params, batch):
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
+
+    if use_autoscale:
+        update = jax.jit(jsa.autoscale(update))
+
+    # num_epochs = 1
 
     for epoch in range(num_epochs):
         start_time = time.time()
         for _ in range(num_batches):
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
-            batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
+            if use_autoscale:
+                batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
             batch = jax.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
             with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
@@ -131,3 +153,15 @@ if __name__ == "__main__":
         print(f"Epoch {epoch} in {epoch_time:0.2f} sec")
         print(f"Training set accuracy {train_acc:0.5f}")
         print(f"Test set accuracy {test_acc:0.5f}")
+
+    filename = os.path.join(os.path.dirname(__file__), "mnist_experiments.json")
+    config = (
+        param_scale,
+        step_size,
+        num_epochs,
+        use_autoscale,
+        str(np.dtype(training_dtype)),
+        str(np.dtype(scale_dtype)),
+    )
+    results = (float(train_acc), float(test_acc))
+    update_experiments_json(filename, config, results)
