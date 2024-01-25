@@ -247,3 +247,20 @@ class AutoScaleInterpreterTests(chex.TestCase):
             assert isinstance(cfg, AutoScaleConfig)
             assert cfg.rounding_mode == Pow2RoundMode.NONE
             assert cfg.scale_dtype == np.float32
+
+    def test__autoscale_config__scale_dtype_used_in_interpreter_promotion(self):
+        def fn(x):
+            # Underflowing to zero in `autoscale` mode if scale_dtype == np.float16.
+            return x * 3.123283386230469e-05
+
+        scaled_input = scaled_array(np.array(2.0, np.float16), scale=np.float32(0.5))
+        expected_output = fn(np.float16(1))
+
+        with AutoScaleConfig(scale_dtype=np.float32):
+            scaled_output = autoscale(fn)(scaled_input)
+            assert scaled_output.scale.dtype == np.float32
+            npt.assert_equal(np.asarray(scaled_output, dtype=np.float32), expected_output)
+
+        with AutoScaleConfig(scale_dtype=np.float16):
+            scaled_output = autoscale(fn)(scaled_input)
+            npt.assert_almost_equal(scaled_output.scale, 0)

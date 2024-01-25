@@ -101,7 +101,7 @@ class ScaledArray:
         return ScaledArray(self.data.astype(dtype), self.scale)
 
 
-def make_scaled_scalar(val: Array) -> ScaledArray:
+def make_scaled_scalar(val: Array, scale_dtype: Optional[DTypeLike] = None) -> ScaledArray:
     """Make a scaled scalar (array), from a single value.
 
     The returned scalar will always be built such that:
@@ -118,8 +118,11 @@ def make_scaled_scalar(val: Array) -> ScaledArray:
         val = np.float32(val)
     assert np.ndim(val) == 0
     assert np.issubdtype(val.dtype, np.floating)
+    # Scale dtype to use.
+    # TODO: check the scale dtype?
+    scale_dtype = scale_dtype or val.dtype
     # Split mantissa and exponent in data and scale components.
-    scale = pow2_round_down(val)
+    scale = pow2_round_down(val.astype(scale_dtype))
     npapi = get_numpy_api(scale)
     return ScaledArray(npapi.asarray(get_mantissa(val)), scale)
 
@@ -155,8 +158,16 @@ def scaled_array(data: ArrayLike, scale: ArrayLike, dtype: DTypeLike = None, npa
     return scaled_array_base(data, scale, dtype, npapi)
 
 
-def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[Array, ScaledArray]:
-    """ScaledArray (helper) base factory method, similar to `(j)np.array`."""
+def as_scaled_array_base(
+    val: Any, scale: Optional[ArrayLike] = None, scale_dtype: Optional[DTypeLike] = None
+) -> Union[Array, ScaledArray]:
+    """ScaledArray (helper) base factory method, similar to `(j)np.array`.
+
+    Args:
+        val: Value to convert to scaled array.
+        scale: Optional scale value.
+        scale_dtype: Optional (default) scale dtype.
+    """
     if isinstance(val, ScaledArray):
         return val
 
@@ -166,7 +177,7 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[A
     if is_static_one_scale and isinstance(val, (bool, int)):
         return val
     if is_static_one_scale and isinstance(val, float):
-        return make_scaled_scalar(np.float32(val))
+        return make_scaled_scalar(np.float32(val), scale_dtype)
 
     # Ignored dtypes by default: int and bool
     ignored_dtype = np.issubdtype(val.dtype, np.integer) or np.issubdtype(val.dtype, np.bool_)
@@ -174,9 +185,10 @@ def as_scaled_array_base(val: Any, scale: Optional[ArrayLike] = None) -> Union[A
         return val
     # Floating point scalar
     if val.ndim == 0 and is_static_one_scale:
-        return make_scaled_scalar(val)
+        return make_scaled_scalar(val, scale_dtype)
 
-    scale = np.array(1, dtype=val.dtype) if scale is None else scale
+    scale_dtype = scale_dtype or val.dtype
+    scale = np.array(1, dtype=scale_dtype) if scale is None else scale
     if isinstance(val, (np.ndarray, Array)):
         if is_static_one_scale:
             return ScaledArray(val, scale)
