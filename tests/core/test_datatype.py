@@ -137,6 +137,26 @@ class ScaledArrayDataclassTests(chex.TestCase):
         assert scaled_val.shape == ()
         assert scaled_val.dtype == val.dtype
 
+    def test__make_scaled_scalar__optional_scale_dtype(self):
+        val = np.float16(0.25)
+        scaled_val = make_scaled_scalar(val, scale_dtype=np.float32)
+        assert isinstance(scaled_val, ScaledArray)
+        assert scaled_val.dtype == val.dtype
+        assert scaled_val.scale.dtype == np.float32
+        npt.assert_equal(np.asarray(scaled_val), val)
+
+    @parameterized.parameters(
+        {"val": np.finfo(np.float16).smallest_normal},
+        {"val": np.finfo(np.float16).smallest_subnormal},
+        {"val": np.float16(3.123283386230469e-05)},
+    )
+    def test__make_scaled_scalar__fp16_subnormal_support(self, val):
+        # Use FP32 scale dtype, to have enough range.
+        # NOTE: failing in FP16!
+        scaled_val = make_scaled_scalar(val, scale_dtype=np.float32)
+        # No loss of information when converting everything to FP32.
+        npt.assert_equal(np.asarray(scaled_val, dtype=np.float32), np.float32(val))
+
     @parameterized.parameters(
         {"val": np.array(1.0)},
         {"val": np.float32(-0.5)},

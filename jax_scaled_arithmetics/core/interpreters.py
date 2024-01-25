@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial, wraps
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import numpy as np
@@ -15,7 +15,7 @@ from jax._src.custom_derivatives import (
 )
 from jax._src.util import safe_map
 
-from .datatype import Array, DTypeLike, NDArray, ScaledArray, as_scaled_array_base, is_scaled_leaf
+from .datatype import Array, DTypeLike, ScaledArray, as_scaled_array_base, is_scaled_leaf
 from .utils import Pow2RoundMode
 
 
@@ -96,24 +96,13 @@ def _get_data(val: Any) -> Array:
     return val
 
 
-def promote_scalar_to_scaled_array(val: Any) -> ScaledArray:
+def promote_scalar_to_scaled_array(val: Any, scale_dtype: Optional[DTypeLike] = None) -> ScaledArray:
     """Promote a scalar (Numpy, JAX, ...) to a Scaled Array.
 
     Note: needs to work with any input type, including JAX tracer ones.
     """
     # Use `as_scaled_array` promotion rules.
-    return as_scaled_array_base(val)
-
-
-def numpy_constant_scaled_array(val: NDArray[Any]) -> ScaledArray:
-    """Get the ScaledArray corresponding to a Numpy constant.
-
-    Only supporting Numpy scalars at the moment.
-    """
-    # TODO: generalized rules!
-    assert np.ndim(val) == 0
-    assert np.issubdtype(val.dtype, np.floating)
-    return ScaledArray(data=np.array(1.0, dtype=val.dtype), scale=np.copy(val))
+    return as_scaled_array_base(val, scale_dtype=scale_dtype)
 
 
 def register_scaled_op(
@@ -200,6 +189,8 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
     env: Dict[core.Var, ScaledArray] = {}
     # Check dtype consistency between normal and scaled modes.
     safe_check_dtypes: bool = False
+    # AutoScale config to use.
+    autoscale_cfg = get_autoscale_config()
 
     def read(var):
         if type(var) is core.Literal:
@@ -209,11 +200,11 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
     def write(var, val):
         env[var] = val
 
-    def promote_to_scaled_array(val):
+    def promote_to_scaled_array(val, scale_dtype):
         if isinstance(val, ScaledArray):
             return val
         elif np.ndim(val) == 0:
-            return promote_scalar_to_scaled_array(val)
+            return promote_scalar_to_scaled_array(val, scale_dtype)
         # No promotion rule => just return as such.
         return val
 
@@ -245,7 +236,7 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts, *args):
             )
         else:
             # Using scaled primitive. Automatic promotion of inputs to scaled array, when possible.
-            scaled_invals = list(map(promote_to_scaled_array, invals))
+            scaled_invals = list(map(lambda v: promote_to_scaled_array(v, autoscale_cfg.scale_dtype), invals))
             outvals = scaled_prim_fn(*scaled_invals, **eqn.params)
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
