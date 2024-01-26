@@ -102,3 +102,19 @@ def safe_reciprocal(val: Array) -> Array:
         return np.reciprocal(val, out=np.array(0, dtype=val.dtype), where=val != 0)
     # JAX general implementation.
     return jax.lax.select(val == 0, val, jax.lax.reciprocal(val))
+
+
+def python_scalar_as_numpy(val: Any) -> Any:
+    """Convert Python scalar to Numpy scalar, if possible.
+
+    Using by default JAX 32 bits precision, instead of 64 bits.
+
+    Returning unchanged value if not any (bool, int, float).
+    """
+    if isinstance(val, bool):
+        return np.bool_(val)
+    elif isinstance(val, int):
+        return np.int32(val)
+    elif isinstance(val, float):
+        return np.float32(val)
+    return val

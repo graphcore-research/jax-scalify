@@ -6,7 +6,13 @@ import numpy.testing as npt
 from absl.testing import parameterized
 
 from jax_scaled_arithmetics.core import Array, pow2_round_down, pow2_round_up
-from jax_scaled_arithmetics.core.utils import _exponent_bits_mask, get_mantissa, safe_div, safe_reciprocal
+from jax_scaled_arithmetics.core.utils import (
+    _exponent_bits_mask,
+    get_mantissa,
+    python_scalar_as_numpy,
+    safe_div,
+    safe_reciprocal,
+)
 
 
 class Pow2RoundingUtilTests(chex.TestCase):
@@ -90,3 +96,9 @@ class SafeDivOpTests(chex.TestCase):
         out = safe_reciprocal(val)
         assert out.dtype == val.dtype
         npt.assert_almost_equal(out, 0)
+
+
+def test__python_scalar_as_numpy__proper_convertion():
+    npt.assert_equal(python_scalar_as_numpy(False), np.bool_(False))
+    npt.assert_equal(python_scalar_as_numpy(4), np.int32(4))
+    npt.assert_equal(python_scalar_as_numpy(3.2), np.float32(3.2))
