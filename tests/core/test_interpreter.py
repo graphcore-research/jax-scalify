@@ -19,7 +19,59 @@ from jax_scaled_arithmetics.core import (
     register_scaled_op,
     scaled_array,
 )
-from jax_scaled_arithmetics.core.interpreters import promote_scalar_to_scaled_array
+from jax_scaled_arithmetics.core.interpreters import ScalifyTracerArray, promote_scalar_to_scaled_array
+
+
+class ScalifyTracerArrayTests(chex.TestCase):
+    @parameterized.parameters(
+        {"arr": True},
+        {"arr": 2},
+        {"arr": 3.0},
+    )
+    def test__scalify_tracer_array__init__from_python_value(self, arr):
+        tracer_arr = ScalifyTracerArray(arr)
+        assert tracer_arr.array == arr
+        assert not tracer_arr.is_scaled_array
+        assert tracer_arr.is_broadcasted_scalar == (tracer_arr.size == 1)
+        assert tracer_arr.to_array() is tracer_arr.array
+
+    @parameterized.parameters(
+        {"arr": np.float32(2)},
+        {"arr": np.array([1, 2])},
+        {"arr": jnp.array([3, 4])},
+    )
+    def test__scalify_tracer_array__init__from_normal_array(self, arr):
+        tracer_arr = ScalifyTracerArray(arr)
+        assert tracer_arr.array is arr
+        assert not tracer_arr.is_scaled_array
+        assert tracer_arr.is_broadcasted_scalar == (tracer_arr.size == 1)
+        assert tracer_arr.to_array() is tracer_arr.array
+        # Basic properties.
+        assert tracer_arr.shape == arr.shape
+        assert tracer_arr.size == arr.size
+
+    @parameterized.parameters({"arr": scaled_array([1, 2], 3.0)})
+    def test__scalify_tracer_array__init__from_scaled_array(self, arr):
+        tracer_arr = ScalifyTracerArray(arr)
+        assert tracer_arr.array is arr
+        assert tracer_arr.is_scaled_array
+        assert tracer_arr.to_scaled_array() is tracer_arr.array
+
+    def test__scalify_tracer_array__init__is_broadcasted_scalar_kwarg(self):
+        arr = scaled_array([1, 2], 3.0)
+        assert ScalifyTracerArray(arr, is_broadcasted_scalar=True).is_broadcasted_scalar
+        assert not ScalifyTracerArray(arr, is_broadcasted_scalar=False).is_broadcasted_scalar
+
+    def test__scalify_tracer_array__flatten__proper_pytree(self):
+        arr = scaled_array([1, 2], 3.0)
+        tracer_arr_in = ScalifyTracerArray(arr, True)
+        # Proper round trip!
+        flat_arrays, pytree = jax.tree_util.tree_flatten(tracer_arr_in)
+        tracer_arr_out = jax.tree_util.tree_unflatten(pytree, flat_arrays)
+
+        assert isinstance(tracer_arr_out, ScalifyTracerArray)
+        assert tracer_arr_out.is_broadcasted_scalar == tracer_arr_in.is_broadcasted_scalar
+        npt.assert_array_equal(np.asarray(tracer_arr_out.array), np.asarray(tracer_arr_in.array))
 
 
 class AutoScaleInterpreterTests(chex.TestCase):
