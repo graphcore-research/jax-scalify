@@ -19,7 +19,7 @@ from jax_scaled_arithmetics.core import (
     register_scaled_op,
     scaled_array,
 )
-from jax_scaled_arithmetics.core.interpreters import ScalifyTracerArray, promote_scalar_to_scaled_array
+from jax_scaled_arithmetics.core.interpreters import ScalifyTracerArray
 
 
 class ScalifyTracerArrayTests(chex.TestCase):
@@ -72,6 +72,38 @@ class ScalifyTracerArrayTests(chex.TestCase):
         assert isinstance(tracer_arr_out, ScalifyTracerArray)
         assert tracer_arr_out.is_broadcasted_scalar == tracer_arr_in.is_broadcasted_scalar
         npt.assert_array_equal(np.asarray(tracer_arr_out.array), np.asarray(tracer_arr_in.array))
+
+    @parameterized.parameters(
+        {"input": 3.0},
+        {"input": np.float32(3.0)},
+        {"input": np.array(3.0)},
+        {"input": jnp.array(3.0)},
+    )
+    def test__scalify_tracer_array__to_scaled_array__scalar_input(self, input):
+        scaled_val = ScalifyTracerArray(input).to_scaled_array()
+        assert isinstance(scaled_val, ScaledArray)
+        assert scaled_val.data.dtype == scaled_val.scale.dtype
+        # NOTE: scale is a power-of-two.
+        npt.assert_almost_equal(np.asarray(scaled_val), input)
+
+    @parameterized.parameters(
+        {"input": np.array(3)},
+        {"input": jnp.array(3)},
+        {"input": np.int32(2)},
+    )
+    def test__scalify_tracer_array__to_scaled_array__not_promoted_input(self, input):
+        out = ScalifyTracerArray(input).to_scaled_array()
+        assert out is input
+
+    def test__scalify_tracer_array__to_scaled_array__broadcasted_scalar_input(self):
+        data = np.array([5, 5], dtype=np.float16)
+        scaled_out = ScalifyTracerArray(data, is_broadcasted_scalar=True).to_scaled_array(scale_dtype=np.float32)
+
+        assert isinstance(scaled_out, ScaledArray)
+        assert scaled_out.dtype == data.dtype
+        assert scaled_out.scale.dtype == np.float32
+        npt.assert_almost_equal(scaled_out.scale, 4)
+        npt.assert_array_equal(np.asarray(scaled_out), data)
 
 
 class AutoScaleInterpreterTests(chex.TestCase):
@@ -196,6 +228,25 @@ class AutoScaleInterpreterTests(chex.TestCase):
             npt.assert_array_almost_equal(scaled_out, exp_out, decimal=4)
 
     @chex.variants(with_jit=True, without_jit=True)
+    def test__autoscale_decorator__promotion_broadcasted_scalar_array(self):
+        def fn(sa, b):
+            # Forcing broadcasting before the `lax.mul`
+            b = jax.lax.broadcast_in_dim(b, sa.shape, ())
+            return sa * b
+
+        sa = scaled_array([0.5, 1.0], np.float32(4.0), dtype=np.float32)
+        b = jnp.array(4.0, dtype=np.float16)
+
+        scaled_fn = self.variant(autoscale(fn))
+        sout = scaled_fn(sa, b)
+        expected_out = fn(np.asarray(sa), b)
+
+        assert isinstance(sout, ScaledArray)
+        # Proper output scale, with `b` treated as scaled scalar.
+        npt.assert_equal(np.asarray(sout.scale), np.float32(16))
+        npt.assert_array_equal(np.asarray(sout), expected_out)
+
+    @chex.variants(with_jit=True, without_jit=True)
     def test__autoscale_decorator__custom_jvp__proper_graph_transformation_and_result(self):
         # JAX official `jvp` example.
         @jax.custom_jvp
@@ -263,29 +314,6 @@ class AutoScaleInterpreterTests(chex.TestCase):
         for g, sg in zip(grads, scaled_grads):
             assert isinstance(sg, ScaledArray)
             npt.assert_array_almost_equal(sg, g)
-
-    @parameterized.parameters(
-        {"input": 3.0},
-        {"input": np.float32(3.0)},
-        {"input": np.array(3.0)},
-        {"input": jnp.array(3.0)},
-    )
-    def test__promote_scalar_to_scaled_array__promoted_to_scaled_array(self, input):
-        scaled_val = promote_scalar_to_scaled_array(input)
-        assert isinstance(scaled_val, ScaledArray)
-        assert scaled_val.data.dtype == scaled_val.scale.dtype
-        # NOTE: scale is a power-of-two.
-        npt.assert_almost_equal(np.asarray(scaled_val), input)
-
-    @parameterized.parameters(
-        {"input": np.array(3)},
-        {"input": jnp.array(3)},
-        {"input": 3},
-        {"input": np.int32(2)},
-    )
-    def test__promote_scalar_to_scaled_array__not_promoted_to_scaled_array(self, input):
-        out = promote_scalar_to_scaled_array(input)
-        assert out is input
 
     def test__autoscale_config__default_values(self):
         cfg = get_autoscale_config()
