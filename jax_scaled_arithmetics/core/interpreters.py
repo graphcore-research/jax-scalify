@@ -16,7 +16,16 @@ from jax._src.custom_derivatives import (
 from jax._src.util import safe_map
 from jax.tree_util import register_pytree_node_class
 
-from .datatype import Array, ArrayTypes, DTypeLike, ScaledArray, Shape, as_scaled_array_base, is_scaled_leaf
+from .datatype import (
+    Array,
+    ArrayTypes,
+    DTypeLike,
+    ScaledArray,
+    Shape,
+    as_scaled_array_base,
+    is_scaled_leaf,
+    is_static_zero,
+)
 from .utils import Pow2RoundMode, python_scalar_as_numpy
 
 
@@ -82,11 +91,19 @@ _scaled_ops_registry: Dict[core.Primitive, Tuple[Any, ScaledPrimitiveType]] = {}
 """
 
 
-_scalar_preserving_primitives: Set[core.Primitive] = set()
-"""Scalar preserving JAX primitives
+_broadcasted_scalar_preserving_primitives: Set[core.Primitive] = set()
+"""Scalar (broadcasted array) preserving JAX primitives
 
 More specifically: if all inputs are (broadcasted) scalars, then the output(s)
 are broadcasted scalars. Keeping track of broadcasted scalars is allowing
+proper conversion to ScaledArrays (instead of assigning default scale 1).
+"""
+
+_broadcasted_zero_preserving_primitives: Set[core.Primitive] = set()
+"""Zero (broadcasted array) preserving JAX primitives
+
+More specifically: if all inputs are (broadcasted) zero scalars, then the output(s)
+are broadcasted zero scalars. Keeping track of broadcasted zero scalars is allowing
 proper conversion to ScaledArrays (instead of assigning default scale 1).
 """
 
@@ -172,34 +189,52 @@ class ScalifyTracerArray:
     Args:
         array: Normal or scaled array.
         is_broadcasted_scalar: Is the array a broadcasted scalar (metadata).
+        is_broadcasted_zero: Is the array a broadcased zero scalar (metadata).
     """
 
     array: Union[Array, ScaledArray] = None
+    # Metadata fields.
     is_broadcasted_scalar: bool = False
+    is_broadcasted_zero: bool = False
 
-    def __init__(self, arr: Union[Array, ScaledArray], is_broadcasted_scalar: Optional[bool] = None) -> None:
+    def __init__(
+        self,
+        arr: Union[Array, ScaledArray],
+        is_broadcasted_scalar: Optional[bool] = None,
+        is_broadcasted_zero: Optional[bool] = None,
+    ) -> None:
         # Convert Python scalars, if necessary.
         arr = python_scalar_as_numpy(arr)
         assert isinstance(arr, (np.bool_, np.number, np.ndarray, ScaledArray, *ArrayTypes))
         object.__setattr__(self, "array", arr)
-        # Optional is broadcasted scalar information.
+
+        # Is a zero broadcasted scalar? Only checking when info is not provided.
+        if is_broadcasted_zero is None:
+            is_broadcasted_zero = bool(np.all(is_static_zero(self.array)))
+        object.__setattr__(self, "is_broadcasted_zero", is_broadcasted_zero)
+        # Optional is broadcasted scalar information (always consistent with broadcasted zero!)
         is_scalar = self.array.size == 1
         is_broadcasted_scalar = is_scalar if is_broadcasted_scalar is None else is_broadcasted_scalar or is_scalar
+        is_broadcasted_scalar = is_broadcasted_scalar or is_broadcasted_zero
         object.__setattr__(self, "is_broadcasted_scalar", is_broadcasted_scalar)
+
+        # Always make sure we have zero scale to represent broadcasted zero.
+        if is_broadcasted_zero and isinstance(self.array, ScaledArray):
+            object.__setattr__(self.array, "scale", np.array(0, self.array.scale.dtype))
 
     def tree_flatten(self):
         # See official JAX documentation on extending PyTrees.
         # Note: using explicit tree flatten instead of chex for MyPy compatibility.
         children = (self.array,)
-        aux_data = (self.is_broadcasted_scalar,)
+        aux_data = (self.is_broadcasted_scalar, self.is_broadcasted_zero)
         return (children, aux_data)
 
     @classmethod
     def tree_unflatten(cls, aux_data, children):
         # See official JAX documentation on extending PyTrees.
-        assert len(aux_data) == 1
+        assert len(aux_data) == 2
         assert len(children) == 1
-        return cls(children[0], aux_data[0])
+        return cls(children[0], is_broadcasted_scalar=aux_data[0], is_broadcasted_zero=aux_data[1])
 
     @property
     def dtype(self) -> DTypeLike:
@@ -234,7 +269,12 @@ class ScalifyTracerArray:
         if isinstance(self.array, ScaledArray) or not np.issubdtype(self.dtype, np.floating):
             return self.array
 
-        if np.ndim(self.array) == 0:
+        if self.is_broadcasted_zero:
+            # Directly create the scaled array.
+            scale_dtype = scale_dtype or self.array.dtype
+            scale = np.array(0, dtype=scale_dtype)
+            return ScaledArray(data=self.array, scale=scale)
+        elif np.ndim(self.array) == 0:
             # Single value => "easy case".
             return as_scaled_array_base(self.array, scale_dtype=scale_dtype)
         elif self.is_broadcasted_scalar:
@@ -341,11 +381,21 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *ar
         any_scaled_inputs = any([v.is_scaled_array for v in invals_tracer])
         # Is there a scaled primitive associated?
         scaled_prim_fn, scaled_prim_type = _scaled_ops_registry.get(eqn.primitive, (None, ScaledPrimitiveType.NEVER))
+
         # Are outputs broadcasted scalars?
+        are_inputs_broadcasted_scalars = all([v.is_broadcasted_scalar for v in invals_tracer])
         are_outputs_broadcasted_scalars = (
-            all([v.is_broadcasted_scalar for v in invals_tracer]) and eqn.primitive in _scalar_preserving_primitives
+            are_inputs_broadcasted_scalars and eqn.primitive in _broadcasted_scalar_preserving_primitives
         )
-        scalify_array_init_fn = lambda v: ScalifyTracerArray(v, is_broadcasted_scalar=are_outputs_broadcasted_scalars)
+        # Are outputs broadcasted zeroes?
+        are_inputs_broadcasted_zeroes = all([v.is_broadcasted_zero for v in invals_tracer])
+        are_outputs_broadcasted_zeroes = (
+            are_inputs_broadcasted_zeroes and eqn.primitive in _broadcasted_zero_preserving_primitives
+        )
+        # Outputs scalify factory method.
+        scalify_array_init_fn = lambda v: ScalifyTracerArray(
+            v, is_broadcasted_scalar=are_outputs_broadcasted_scalars, is_broadcasted_zero=are_outputs_broadcasted_zeroes
+        )
 
         if not any_scaled_inputs and scaled_prim_type != ScaledPrimitiveType.ALWAYS_SCALE:
             # Using normal JAX primitive: no scaled inputs, and not always scale rule.
@@ -479,7 +529,7 @@ _scaled_jaxpr_ops_registry[custom_vjp_call_jaxpr_p] = scaled_custom_vjp_call_tra
 
 
 # Default collection of scalar preserving JAX primitives.
-_scalar_preserving_primitives |= {
+_broadcasted_scalar_preserving_primitives |= {
     lax.abs_p,
     lax.acos_p,
     lax.acosh_p,
@@ -492,8 +542,12 @@ _scalar_preserving_primitives |= {
     lax.bitcast_convert_type_p,
     lax.broadcast_in_dim_p,
     lax.cbrt_p,
+    lax.ceil_p,
     lax.clamp_p,
     lax.convert_element_type_p,
+    lax.exp_p,
+    lax.expm1_p,
+    lax.floor_p,
     lax.integer_pow_p,
     lax.min_p,
     lax.max_p,
@@ -506,6 +560,38 @@ _scalar_preserving_primitives |= {
     lax.reduce_precision_p,
     lax.reshape_p,
     lax.rem_p,
+    lax.slice_p,
+    lax.sin_p,
+    lax.sinh_p,
+    lax.sub_p,
+    lax.sqrt_p,
+    lax.tan_p,
+    lax.tanh_p,
+    lax.transpose_p,
+}
+
+# Default collection of zero arrays preserving JAX primitives.
+_broadcasted_zero_preserving_primitives |= {
+    lax.abs_p,
+    lax.add_p,
+    lax.broadcast_in_dim_p,
+    lax.cbrt_p,
+    lax.ceil_p,
+    lax.clamp_p,
+    lax.convert_element_type_p,
+    lax.exp_p,
+    lax.expm1_p,
+    lax.floor_p,
+    lax.min_p,
+    lax.max_p,
+    lax.mul_p,
+    lax.neg_p,
+    lax.reduce_prod_p,
+    lax.reduce_sum_p,
+    lax.reduce_max_p,
+    lax.reduce_min_p,
+    lax.reduce_precision_p,
+    lax.reshape_p,
     lax.slice_p,
     lax.sin_p,
     lax.sinh_p,

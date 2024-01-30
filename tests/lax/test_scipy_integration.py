@@ -29,9 +29,11 @@ class ScaledScipyHighLevelMethodsTests(chex.TestCase):
     def test__scipy_logsumexp__accurate_scaled_op(self, dtype):
         from jax.scipy.special import logsumexp
 
-        input_scaled = scaled_array(self.rs.rand(10), 2, dtype=dtype)
+        input_scaled = scaled_array(self.rs.rand(10), 4.0, dtype=dtype)
         # JAX `logsumexp` Jaxpr is a non-trivial graph!
         out_scaled = autoscale(logsumexp)(input_scaled)
         out_expected = logsumexp(np.asarray(input_scaled))
         assert out_scaled.dtype == out_expected.dtype
+        # Proper accuracy + keep the same scale.
+        npt.assert_array_equal(out_scaled.scale, input_scaled.scale)
         npt.assert_array_almost_equal(out_scaled, out_expected, decimal=5)
