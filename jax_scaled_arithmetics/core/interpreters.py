@@ -2,11 +2,11 @@
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial, wraps
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 
 import jax
 import numpy as np
-from jax import core
+from jax import core, lax
 from jax._src.custom_derivatives import (
     custom_jvp_call_jaxpr_p,
     custom_jvp_call_p,
@@ -82,6 +82,15 @@ _scaled_ops_registry: Dict[core.Primitive, Tuple[Any, ScaledPrimitiveType]] = {}
 """
 
 
+_scalar_preserving_primitives: Set[core.Primitive] = set()
+"""Scalar preserving JAX primitives
+
+More specifically: if all inputs are (broadcasted) scalars, then the output(s)
+are broadcasted scalars. Keeping track of broadcasted scalars is allowing
+proper conversion to ScaledArrays (instead of assigning default scale 1).
+"""
+
+
 def _get_lax_prim(scaled_func: Any) -> core.Primitive:
     try:
         prim_name = scaled_func.__name__.replace("scaled_", "") + "_p"
@@ -105,15 +114,6 @@ def _get_data(val: Any) -> Array:
     if isinstance(val, ScaledArray):
         return val.data
     return val
-
-
-def promote_scalar_to_scaled_array(val: Any, scale_dtype: Optional[DTypeLike] = None) -> ScaledArray:
-    """Promote a scalar (Numpy, JAX, ...) to a Scaled Array.
-
-    Note: needs to work with any input type, including JAX tracer ones.
-    """
-    # Use `as_scaled_array` promotion rules.
-    return as_scaled_array_base(val, scale_dtype=scale_dtype)
 
 
 def register_scaled_op(
@@ -160,15 +160,6 @@ def find_registered_scaled_op(prim: core.Primitive) -> Tuple[Any, ScaledPrimitiv
     return _scaled_ops_registry.get(prim, (None, ScaledPrimitiveType.NEVER))
 
 
-def promote_to_scaled_array(val, scale_dtype: Optional[DTypeLike] = None):
-    if isinstance(val, ScaledArray):
-        return val
-    elif np.ndim(val) == 0:
-        return promote_scalar_to_scaled_array(val, scale_dtype)
-    # No promotion rule => just return as such.
-    return val
-
-
 @register_pytree_node_class
 @dataclass(frozen=True, init=False)
 class ScalifyTracerArray:
@@ -211,6 +202,10 @@ class ScalifyTracerArray:
         return cls(children[0], aux_data[0])
 
     @property
+    def dtype(self) -> DTypeLike:
+        return self.array.dtype
+
+    @property
     def size(self) -> int:
         return self.array.size
 
@@ -223,12 +218,36 @@ class ScalifyTracerArray:
         return isinstance(self.array, ScaledArray)
 
     def to_scaled_array(self, scale_dtype: Optional[DTypeLike] = None) -> ScaledArray:
-        if self.is_scaled_array:
+        """(Tentatively) converting to a scaled array.
+
+        Supporting the following cases:
+            - scalar array;
+            - broadcasted scalar array;
+
+        Not supporting:
+            - bool/int dtypes;
+            - any other array;
+
+        TODO: support (constant) Numpy arrays.
+        """
+        # Already scaled array, or not a floating point dtype.
+        if isinstance(self.array, ScaledArray) or not np.issubdtype(self.dtype, np.floating):
             return self.array
-        # TODO: improve the logic for broadcasted scalar arrays!
-        return promote_to_scaled_array(self.array, scale_dtype)
+
+        if np.ndim(self.array) == 0:
+            # Single value => "easy case".
+            return as_scaled_array_base(self.array, scale_dtype=scale_dtype)
+        elif self.is_broadcasted_scalar:
+            # Broadcasted scalar => convert as a scalar.
+            scalar_val = self.array.ravel()[0]
+            scaled_scalar = as_scaled_array_base(scalar_val, scale_dtype=scale_dtype)
+            return as_scaled_array_base(self.array, scale=scaled_scalar.scale)
+
+        # No promotion rule found => just return as such.
+        return self.array
 
     def to_array(self) -> Array:
+        """Converting to a (normal) JAX/Numpy array."""
         if not self.is_scaled_array:
             return self.array
         return self.array.to_array()
@@ -303,6 +322,7 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *ar
 
     # A few initial checks to make sure there is consistency.
     assert len(jaxpr.invars) == len(args)
+    assert len(jaxpr.constvars) == len(consts)
     safe_map(write, jaxpr.invars, args)
     safe_map(write, jaxpr.constvars, consts)
 
@@ -321,12 +341,17 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *ar
         any_scaled_inputs = any([v.is_scaled_array for v in invals_tracer])
         # Is there a scaled primitive associated?
         scaled_prim_fn, scaled_prim_type = _scaled_ops_registry.get(eqn.primitive, (None, ScaledPrimitiveType.NEVER))
+        # Are outputs broadcasted scalars?
+        are_outputs_broadcasted_scalars = (
+            all([v.is_broadcasted_scalar for v in invals_tracer]) and eqn.primitive in _scalar_preserving_primitives
+        )
+        scalify_array_init_fn = lambda v: ScalifyTracerArray(v, is_broadcasted_scalar=are_outputs_broadcasted_scalars)
 
         if not any_scaled_inputs and scaled_prim_type != ScaledPrimitiveType.ALWAYS_SCALE:
             # Using normal JAX primitive: no scaled inputs, and not always scale rule.
             invals = [v.to_array() for v in invals_tracer]
             outvals = jaxpr_eqn_bind(eqn, invals)
-            outvals_tracer = list(map(ScalifyTracerArray, outvals))
+            outvals_tracer = list(map(scalify_array_init_fn, outvals))
         elif scaled_prim_fn is None:
             raise NotImplementedError(
                 f"'{eqn.primitive}' JAX primitive does not have an implementation for ScaledArray inputs yet."
@@ -337,7 +362,7 @@ def autoscale_jaxpr(jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *ar
             outvals = scaled_prim_fn(*scaled_invals, **eqn.params)
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
-            outvals_tracer = list(map(ScalifyTracerArray, outvals))
+            outvals_tracer = list(map(scalify_array_init_fn, outvals))
 
             # Check consistency with normal JAX mode. Help catching dtype promotion errors.
             # NOTE: ignoring when no outputs! (e.g. debug_callback).
@@ -451,3 +476,42 @@ def scaled_custom_vjp_call_translation(*args: ScalifyTracerArray, **params: Any)
 
 _scaled_jaxpr_ops_registry[custom_vjp_call_p] = scaled_custom_vjp_call_translation
 _scaled_jaxpr_ops_registry[custom_vjp_call_jaxpr_p] = scaled_custom_vjp_call_translation
+
+
+# Default collection of scalar preserving JAX primitives.
+_scalar_preserving_primitives |= {
+    lax.abs_p,
+    lax.acos_p,
+    lax.acosh_p,
+    lax.add_p,
+    lax.asin_p,
+    lax.asinh_p,
+    lax.atan_p,
+    lax.atan2_p,
+    lax.atanh_p,
+    lax.bitcast_convert_type_p,
+    lax.broadcast_in_dim_p,
+    lax.cbrt_p,
+    lax.clamp_p,
+    lax.convert_element_type_p,
+    lax.integer_pow_p,
+    lax.min_p,
+    lax.max_p,
+    lax.mul_p,
+    lax.neg_p,
+    lax.reduce_prod_p,
+    lax.reduce_sum_p,
+    lax.reduce_max_p,
+    lax.reduce_min_p,
+    lax.reduce_precision_p,
+    lax.reshape_p,
+    lax.rem_p,
+    lax.slice_p,
+    lax.sin_p,
+    lax.sinh_p,
+    lax.sub_p,
+    lax.sqrt_p,
+    lax.tan_p,
+    lax.tanh_p,
+    lax.transpose_p,
+}

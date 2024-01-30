@@ -240,14 +240,21 @@ class ScaledArrayDataclassTests(chex.TestCase):
         output = as_scaled_array(data)
         assert output is data
 
+    @chex.variants(with_jit=True, without_jit=True)
     def test__as_scaled_array__complex_pytree(self):
         input = {"x": jnp.array([1, 2]), "y": jnp.array([1.0, 2]), "z": as_scaled_array(jnp.array([1.0, 2]))}
-        output = as_scaled_array(input)
+        output = self.variant(as_scaled_array)(input, scale=np.float32(2))
         assert isinstance(output, dict)
         assert len(output) == 3
-        assert output["x"] is input["x"]
+
+        npt.assert_array_equal(output["x"], input["x"])
         npt.assert_array_equal(output["y"], input["y"])
-        assert output["z"] is input["z"]
+        npt.assert_array_equal(output["z"], input["z"])
+        npt.assert_almost_equal(output["y"].scale, 2)
+
+        if "without_jit" in self.variant.__name__:
+            assert output["x"] is input["x"]
+            assert output["z"] is input["z"]
 
     @chex.variants(with_jit=True, without_jit=True)
     @parameterized.parameters(

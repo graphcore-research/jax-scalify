@@ -171,6 +171,7 @@ def as_scaled_array_base(
     if isinstance(val, ScaledArray):
         return val
 
+    assert scale is None or scale_dtype is None
     # Simple case => when can ignore the scaling factor (i.e. 1 implicitely).
     is_static_one_scale: bool = scale is None or is_static_one_scalar(scale)  # type:ignore
     # Trivial cases: bool, int, float.
@@ -189,12 +190,15 @@ def as_scaled_array_base(
 
     scale_dtype = scale_dtype or val.dtype
     scale = np.array(1, dtype=scale_dtype) if scale is None else scale
-    if isinstance(val, (np.ndarray, Array)):
+    if isinstance(val, (np.ndarray, *ArrayTypes)):
         if is_static_one_scale:
             return ScaledArray(val, scale)
         else:
             return ScaledArray(val / scale.astype(val.dtype), scale)  # type:ignore
-    return scaled_array_base(val, scale)
+
+    # TODO: fix bug when scale is not 1.
+    raise NotImplementedError(f"Constructing `ScaledArray` from {val} and {scale} not supported.")
+    # return scaled_array_base(val, scale)
 
 
 def as_scaled_array(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:

@@ -10,7 +10,6 @@ from jax_scaled_arithmetics import core
 from jax_scaled_arithmetics.core import (
     DTypeLike,
     ScaledArray,
-    as_scaled_array,
     get_autoscale_config,
     pow2_round,
     register_scaled_op,
@@ -23,7 +22,7 @@ from .scaled_ops_common import check_scalar_scales, promote_scale_types
 def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArray:
     """Scaled add/sub generic implementation."""
     # TODO: understand when promotion is really required?
-    A, B = as_scaled_array((A, B))  # type:ignore
+    # A, B = as_scaled_array((A, B))  # type:ignore
     check_scalar_scales(A, B)
     A, B = promote_scale_types(A, B)
     assert np.issubdtype(A.scale.dtype, np.floating)

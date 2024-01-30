@@ -153,7 +153,7 @@ def scaled_mul(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_div(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
     # TODO: understand when promotion is really required?
-    lhs, rhs = as_scaled_array((lhs, rhs))  # type:ignore
+    # lhs, rhs = as_scaled_array((lhs, rhs))  # type:ignore
     # TODO: investigate different rule?
     return ScaledArray(lhs.data / rhs.data, lhs.scale / rhs.scale)
 
