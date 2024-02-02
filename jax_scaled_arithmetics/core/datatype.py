@@ -43,6 +43,9 @@ class ScaledArray:
     scale: GenericArray
 
     def __post_init__(self):
+        # Always have a Numpy array as `data`.
+        if isinstance(self.data, np.number):
+            object.__setattr__(self, "data", np.array(self.data))
         # TODO/FIXME: support number as data?
         assert isinstance(self.data, (*ArrayTypes, np.ndarray))
         assert isinstance(self.scale, (*ArrayTypes, np.ndarray, np.number))

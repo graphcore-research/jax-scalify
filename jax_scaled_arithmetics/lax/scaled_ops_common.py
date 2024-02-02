@@ -22,6 +22,12 @@ from jax_scaled_arithmetics.core import (
 from .base_scaling_primitives import scaled_set_scaling
 
 
+def _get_data(val: Any) -> Array:
+    if isinstance(val, ScaledArray):
+        return val.data
+    return val
+
+
 def check_scalar_scales(*args: ScaledArray):
     """Check all ScaledArrays have scalar scaling."""
     for val in args:
@@ -283,8 +289,16 @@ def scaled_log(val: ScaledArray) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_select_n(which: Array, *cases: ScaledArray) -> ScaledArray:
     outscale_dtype = promote_types(*[get_scale_dtype(v) for v in cases])
-    outscale = np.array(1, dtype=outscale_dtype)
-    return scaled_op_default_translation(lax.select_n_p, [which, *cases], outscale=outscale)
+    # Get the max scale for renormalizing.
+    # TODO: use `get_data_scale` primitive.
+    scale_cases = [v.scale if isinstance(v, ScaledArray) else np.array(1, outscale_dtype) for v in cases]
+    scales_arr = jnp.array(scale_cases)
+    outscale = jnp.max(scales_arr)
+    # `data` components, renormalized.
+    data_cases = [_get_data(v) * (s / outscale).astype(v.dtype) for s, v in zip(scale_cases, cases)]
+    # Apply normal select!
+    outdata = lax.select_n(which, *data_cases)
+    return ScaledArray(outdata, outscale)
 
 
 @core.register_scaled_lax_op

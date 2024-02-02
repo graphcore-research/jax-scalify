@@ -33,6 +33,7 @@ class ScalifyTracerArrayTests(chex.TestCase):
         assert tracer_arr.array == arr
         assert not tracer_arr.is_scaled_array
         assert tracer_arr.is_broadcasted_scalar == (tracer_arr.size == 1)
+        assert not tracer_arr.is_broadcasted_zero
         assert tracer_arr.to_array() is tracer_arr.array
 
     @parameterized.parameters(
@@ -45,10 +46,28 @@ class ScalifyTracerArrayTests(chex.TestCase):
         assert tracer_arr.array is arr
         assert not tracer_arr.is_scaled_array
         assert tracer_arr.is_broadcasted_scalar == (tracer_arr.size == 1)
+        assert not tracer_arr.is_broadcasted_zero
         assert tracer_arr.to_array() is tracer_arr.array
         # Basic properties.
         assert tracer_arr.shape == arr.shape
         assert tracer_arr.size == arr.size
+
+    @parameterized.parameters(
+        {"arr": np.float32(2), "expected_is_zero": False},
+        {"arr": np.float32(0), "expected_is_zero": True},
+        {"arr": np.array([0, 0]), "expected_is_zero": True},
+        {"arr": np.array([0.0, 0.0]), "expected_is_zero": True},
+        {"arr": scaled_array([1, 2.0], 0.0, npapi=np), "expected_is_zero": True},
+        {"arr": scaled_array([0, 0.0], 1.0, npapi=np), "expected_is_zero": True},
+        {"arr": jnp.array([0, 0]), "expected_is_zero": False},
+    )
+    def test__scalify_tracer_array__init__zero_broadcasted_array(self, arr, expected_is_zero):
+        tracer_arr = ScalifyTracerArray(arr)
+        assert tracer_arr.is_broadcasted_zero == expected_is_zero
+        # Scaled array conversion => scale should be zero.
+        scaled_arr = tracer_arr.to_scaled_array()
+        if tracer_arr.is_broadcasted_zero and isinstance(scaled_arr, ScaledArray):
+            assert scaled_arr.scale == 0
 
     @parameterized.parameters({"arr": scaled_array([1, 2], 3.0)})
     def test__scalify_tracer_array__init__from_scaled_array(self, arr):
@@ -56,21 +75,31 @@ class ScalifyTracerArrayTests(chex.TestCase):
         assert tracer_arr.array is arr
         assert tracer_arr.is_scaled_array
         assert tracer_arr.to_scaled_array() is tracer_arr.array
+        assert not tracer_arr.is_broadcasted_zero
 
     def test__scalify_tracer_array__init__is_broadcasted_scalar_kwarg(self):
         arr = scaled_array([1, 2], 3.0)
         assert ScalifyTracerArray(arr, is_broadcasted_scalar=True).is_broadcasted_scalar
         assert not ScalifyTracerArray(arr, is_broadcasted_scalar=False).is_broadcasted_scalar
 
+    def test__scalify_tracer_array__init__is_broadcasted_zero_kwarg(self):
+        arr = scaled_array([0, 1], 3.0)
+        # NOTE: explicitly passing the argument, not checking the data!
+        assert ScalifyTracerArray(arr, is_broadcasted_zero=True).is_broadcasted_scalar
+        assert ScalifyTracerArray(arr, is_broadcasted_zero=True).is_broadcasted_zero
+        assert not ScalifyTracerArray(arr, is_broadcasted_zero=False).is_broadcasted_scalar
+        assert not ScalifyTracerArray(arr, is_broadcasted_zero=False).is_broadcasted_zero
+
     def test__scalify_tracer_array__flatten__proper_pytree(self):
         arr = scaled_array([1, 2], 3.0)
-        tracer_arr_in = ScalifyTracerArray(arr, True)
+        tracer_arr_in = ScalifyTracerArray(arr, is_broadcasted_scalar=True, is_broadcasted_zero=True)
         # Proper round trip!
         flat_arrays, pytree = jax.tree_util.tree_flatten(tracer_arr_in)
         tracer_arr_out = jax.tree_util.tree_unflatten(pytree, flat_arrays)
 
         assert isinstance(tracer_arr_out, ScalifyTracerArray)
         assert tracer_arr_out.is_broadcasted_scalar == tracer_arr_in.is_broadcasted_scalar
+        assert tracer_arr_out.is_broadcasted_zero == tracer_arr_in.is_broadcasted_zero
         npt.assert_array_equal(np.asarray(tracer_arr_out.array), np.asarray(tracer_arr_in.array))
 
     @parameterized.parameters(

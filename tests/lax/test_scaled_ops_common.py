@@ -185,9 +185,26 @@ class ScaledTranslationBooleanPrimitivesTests(chex.TestCase):
     def test__scaled_select_n__proper_result(self):
         mask = self.rs.rand(5) > 0.5
         lhs = scaled_array(self.rs.rand(5), 2.0, dtype=np.float32)
-        rhs = scaled_array(self.rs.rand(5), 3.0, dtype=np.float32)
+        rhs = scaled_array(self.rs.rand(5), 4.0, dtype=np.float32)
         out = scaled_select_n(mask, lhs, rhs)
         assert isinstance(out, ScaledArray)
         assert out.dtype == np.float32
-        npt.assert_almost_equal(out.scale, 1)  # FIXME!
+        # Max scale used.
+        npt.assert_almost_equal(out.scale, 4)
         npt.assert_array_equal(out, np.where(mask, rhs, lhs))
+
+    @parameterized.parameters(
+        {"scale": 0.25},
+        {"scale": 8.0},
+    )
+    def test__scaled_select__relu_grad_example(self, scale):
+        @autoscale
+        def relu_grad(g):
+            return lax.select(g > 0, g, lax.full_like(g, 0))
+
+        # Gradient with some scale.
+        gin = scaled_array([1.0, 0.5], np.float32(scale), dtype=np.float32)
+        gout = relu_grad(gin)
+        # Same scale should be propagated to gradient output.
+        assert isinstance(gout, ScaledArray)
+        npt.assert_array_equal(gout.scale, gin.scale)

@@ -53,12 +53,12 @@ def predict(params, inputs):
     for w, b in params[:-1]:
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
-        activations = jnp.maximum(outputs, 0)
+        activations = jax.nn.relu(outputs)
 
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
     # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
-    logits = jsa.ops.dynamic_rescale_l2_grad(logits)
+    # logits = jsa.ops.dynamic_rescale_l2_grad(logits)
     logits = logits - logsumexp(logits, axis=1, keepdims=True)
     return logits
 
@@ -66,6 +66,7 @@ def predict(params, inputs):
 def loss(params, batch):
     inputs, targets = batch
     preds = predict(params, inputs)
+    targets = jsa.lax.rebalance(targets, np.float32(1 / 16))
     return -jnp.mean(jnp.sum(preds * targets, axis=1))
 
 
