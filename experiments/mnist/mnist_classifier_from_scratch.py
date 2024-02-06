@@ -66,7 +66,7 @@ def predict(params, inputs):
 def loss(params, batch):
     inputs, targets = batch
     preds = predict(params, inputs)
-    targets = jsa.lax.rebalance(targets, np.float32(1 / 16))
+    targets = jsa.lax.rebalance(targets, np.float32(1 / 8))
     return -jnp.mean(jnp.sum(preds * targets, axis=1))
 
 

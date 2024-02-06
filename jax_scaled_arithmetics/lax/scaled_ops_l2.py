@@ -79,7 +79,8 @@ def scaled_dot_general(
     contracting_dim_size = lhs.shape[lhs_contracting_dims[0]]
     # "unit scaling" rule, based on the contracting axis.
     outscale_dtype = jnp.promote_types(lhs.scale.dtype, rhs.scale.dtype)
-    contracting_rescale = pow2_round(np.sqrt(contracting_dim_size), pow2_rounding_mode)
+    contracting_rescale = np.sqrt(contracting_dim_size).astype(outscale_dtype)
+    contracting_rescale = pow2_round(contracting_rescale, pow2_rounding_mode)
     # Keeping power of 2 scale.
     output_scale = lhs.scale * rhs.scale * contracting_rescale.astype(outscale_dtype)
     # NOTE: need to be a bit careful about scale promotion?
@@ -107,14 +108,15 @@ def scaled_conv_general_dilated(lhs: ScaledArray, rhs: ScaledArray, **params) ->
 def scaled_reduce_sum(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
     assert isinstance(val, ScaledArray)
     shape = val.shape
+    scale_dtype = val.scale.dtype
     axes_size = np.array([shape[idx] for idx in axes])
     # Pow2 rounding for unit scaling "rule".
     pow2_rounding_mode = get_autoscale_config().rounding_mode
     # Rescale data component following reduction axes & round to power of 2 value.
-    axes_rescale = np.sqrt(np.prod(axes_size))
+    axes_rescale = np.sqrt(np.prod(axes_size)).astype(scale_dtype)
     axes_rescale = pow2_round(axes_rescale, pow2_rounding_mode)
     data = lax.reduce_sum_p.bind(val.data, axes=axes) / axes_rescale.astype(val.data.dtype)
-    outscale = val.scale * axes_rescale.astype(val.scale.dtype)
+    outscale = val.scale * axes_rescale.astype(scale_dtype)
     return ScaledArray(data, outscale)
 
 

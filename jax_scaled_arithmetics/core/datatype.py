@@ -10,8 +10,8 @@ from jax.core import ShapedArray
 from jax.tree_util import register_pytree_node_class
 from numpy.typing import ArrayLike, DTypeLike, NDArray
 
-from .typing import Array, ArrayTypes, get_numpy_api
-from .utils import get_mantissa, pow2_round_down
+from .pow2 import Pow2RoundMode, pow2_decompose
+from .typing import Array, ArrayTypes
 
 GenericArray = Union[Array, np.ndarray]
 
@@ -121,13 +121,11 @@ def make_scaled_scalar(val: Array, scale_dtype: Optional[DTypeLike] = None) -> S
         val = np.float32(val)
     assert np.ndim(val) == 0
     assert np.issubdtype(val.dtype, np.floating)
-    # Scale dtype to use.
-    # TODO: check the scale dtype?
+    # Scale dtype to use. TODO: check the scale dtype is valid?
     scale_dtype = scale_dtype or val.dtype
     # Split mantissa and exponent in data and scale components.
-    scale = pow2_round_down(val.astype(scale_dtype))
-    npapi = get_numpy_api(scale)
-    return ScaledArray(npapi.asarray(get_mantissa(val)), scale)
+    scale, mantissa = pow2_decompose(val, scale_dtype=scale_dtype, mode=Pow2RoundMode.DOWN)
+    return ScaledArray(mantissa, scale)
 
 
 def is_scaled_leaf(val: Any) -> bool:

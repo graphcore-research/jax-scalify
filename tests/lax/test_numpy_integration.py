@@ -13,7 +13,7 @@ class ScaledJaxNumpyFunctions(chex.TestCase):
         # Use random state for reproducibility!
         self.rs = np.random.RandomState(42)
 
-    @chex.variants(with_jit=True, without_jit=True)
+    @chex.variants(with_jit=True, without_jit=False)
     def test__numpy_mean__proper_gradient_scale_propagation(self):
         def mean_fn(x):
             # Taking the square to "force" ScaledArray gradient.

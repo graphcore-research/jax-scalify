@@ -4,6 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
+from numpy.typing import NDArray
 
 from jax_scaled_arithmetics.core import Array, AutoScaleConfig, ScaledArray, autoscale, scaled_array
 from jax_scaled_arithmetics.lax.base_scaling_primitives import (
@@ -95,7 +96,7 @@ class SetScalingPrimitiveTests(chex.TestCase):
         {"scale": np.float32(1)},
     )
     def test__scaled_set_scaling__unchanged_data_scaled_array(self, scale):
-        val = np.array([-1.0, 2.0], dtype=np.float16)
+        val: NDArray[np.float16] = np.array([-1.0, 2.0], dtype=np.float16)
         out = scaled_set_scaling(val, scale)  # type:ignore
         assert isinstance(out, ScaledArray)
         assert out.data is val

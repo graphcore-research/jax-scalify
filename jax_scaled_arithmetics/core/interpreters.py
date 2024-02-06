@@ -26,7 +26,8 @@ from .datatype import (
     is_scaled_leaf,
     is_static_zero,
 )
-from .utils import Pow2RoundMode, python_scalar_as_numpy
+from .pow2 import Pow2RoundMode
+from .utils import python_scalar_as_numpy
 
 
 @dataclass(frozen=True)

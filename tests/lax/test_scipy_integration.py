@@ -22,6 +22,7 @@ class ScaledScipyHighLevelMethodsTests(chex.TestCase):
         autoscale(fn)(a)
         # FIMXE/TODO: what should be the expected result?
 
+    @chex.variants(with_jit=True, without_jit=True)
     @parameterized.parameters(
         {"dtype": np.float32},
         {"dtype": np.float16},
@@ -31,7 +32,7 @@ class ScaledScipyHighLevelMethodsTests(chex.TestCase):
 
         input_scaled = scaled_array(self.rs.rand(10), 4.0, dtype=dtype)
         # JAX `logsumexp` Jaxpr is a non-trivial graph!
-        out_scaled = autoscale(logsumexp)(input_scaled)
+        out_scaled = self.variant(autoscale(logsumexp))(input_scaled)
         out_expected = logsumexp(np.asarray(input_scaled))
         assert out_scaled.dtype == out_expected.dtype
         # Proper accuracy + keep the same scale.

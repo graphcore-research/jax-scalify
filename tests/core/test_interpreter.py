@@ -6,6 +6,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
+from numpy.typing import NDArray
 
 from jax_scaled_arithmetics.core import (
     Array,
@@ -125,7 +126,7 @@ class ScalifyTracerArrayTests(chex.TestCase):
         assert out is input
 
     def test__scalify_tracer_array__to_scaled_array__broadcasted_scalar_input(self):
-        data = np.array([5, 5], dtype=np.float16)
+        data: NDArray[np.float16] = np.array([5, 5], dtype=np.float16)
         scaled_out = ScalifyTracerArray(data, is_broadcasted_scalar=True).to_scaled_array(scale_dtype=np.float32)
 
         assert isinstance(scaled_out, ScaledArray)
@@ -146,7 +147,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
             return x * 2
 
         func = self.variant(autoscale(func))
-        data = np.array([1, 2], dtype=np.float32)
+        data: NDArray[np.float32] = np.array([1, 2], dtype=np.float32)
         out = func(data)
         # Proper behaviour!
         assert isinstance(out, Array)
@@ -164,9 +165,10 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_func = autoscale(func)
         scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
         jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
-        # Need 3 equations: 2 mul + 1 cast.
-        # TODO: additional mul in `safe_check_dtypes` mode.
-        assert len(jaxpr.eqns) in {3, 4}
+        # Need 4 equations: 1 pow2_decompose + 2 mul + 1 cast.
+        assert len(jaxpr.eqns) in {
+            4,
+        }
         # Vars need to be primitive data types (e.g., f32) -> 2 Vars per ScaledArray
         assert jaxpr.invars[0].aval.shape == scaled_input.shape
         assert jaxpr.invars[1].aval.shape == ()
@@ -357,19 +359,22 @@ class AutoScaleInterpreterTests(chex.TestCase):
             assert cfg.rounding_mode == Pow2RoundMode.NONE
             assert cfg.scale_dtype == np.float32
 
-    def test__autoscale_config__scale_dtype_used_in_interpreter_promotion(self):
+    @chex.variants(with_jit=True, without_jit=True)
+    @parameterized.parameters(
+        {"scale_dtype": np.float16},
+        {"scale_dtype": np.float32},
+    )
+    def test__autoscale_config__scale_dtype_used_in_interpreter_promotion(self, scale_dtype):
         def fn(x):
-            # Underflowing to zero in `autoscale` mode if scale_dtype == np.float16.
-            return x * 3.123283386230469e-05
+            # Sub-normal "learning rate" => can create issue when converting to FP16 scaled array.
+            # return x * 3.123283386230469e-05
+            # FIXME: issue when using the smallest FP16 sub-normal!
+            return x * (np.finfo(np.float16).smallest_subnormal * 2)
 
-        scaled_input = scaled_array(np.array(2.0, np.float16), scale=np.float32(0.5))
         expected_output = fn(np.float16(1))
 
-        with AutoScaleConfig(scale_dtype=np.float32):
-            scaled_output = autoscale(fn)(scaled_input)
-            assert scaled_output.scale.dtype == np.float32
+        with AutoScaleConfig(scale_dtype=scale_dtype):
+            scaled_input = scaled_array(np.array(2.0, np.float16), scale=scale_dtype(0.5))
+            scaled_output = self.variant(autoscale(fn))(scaled_input)
+            assert scaled_output.scale.dtype == scale_dtype
             npt.assert_equal(np.asarray(scaled_output, dtype=np.float32), expected_output)
-
-        with AutoScaleConfig(scale_dtype=np.float16):
-            scaled_output = autoscale(fn)(scaled_input)
-            npt.assert_almost_equal(scaled_output.scale, 0)

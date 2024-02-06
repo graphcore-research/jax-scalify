@@ -165,6 +165,13 @@ def scaled_div(lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
 
 
 @core.register_scaled_lax_op
+def scaled_sign(val: ScaledArray) -> Array:
+    assert isinstance(val, ScaledArray)
+    # Just need to run `lax.sign` on main data.
+    return ScaledArray(lax.sign(val.data), np.array(1, dtype=val.scale.dtype))
+
+
+@core.register_scaled_lax_op
 def scaled_is_finite(val: ScaledArray) -> Array:
     assert isinstance(val, ScaledArray)
     if np.issubdtype(val.scale.dtype, np.integer):
