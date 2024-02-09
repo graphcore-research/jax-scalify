@@ -13,7 +13,7 @@ from numpy.typing import ArrayLike, DTypeLike, NDArray
 from .pow2 import Pow2RoundMode, pow2_decompose
 from .typing import Array, ArrayTypes
 
-GenericArray = Union[Array, np.ndarray]
+GenericArray = Union[Array, np.ndarray[Any, Any]]
 
 
 @register_pytree_node_class
