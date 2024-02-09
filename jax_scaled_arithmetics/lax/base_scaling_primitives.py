@@ -1,6 +1,6 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 import logging
-from typing import Optional, Sequence, Union
+from typing import Any, Dict, Optional, Sequence, Union
 
 import numpy as np
 from jax import core
@@ -127,7 +127,7 @@ def stop_scaling_abstract_eval(values: core.ShapedArray, dtype: Optional[DTypeLi
 
 
 def stop_scaling_mlir_lowering(
-    ctx: LoweringRuleContext, *args: Union[ir.Value, Sequence[ir.Value]], **params
+    ctx: LoweringRuleContext, *args: Union[ir.Value, Sequence[ir.Value]], **params: Dict[str, Any]
 ) -> Sequence[Union[ir.Value, Sequence[ir.Value]]]:
     dtype = params.get("dtype", None)
     if dtype is not None:

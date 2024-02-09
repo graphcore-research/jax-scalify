@@ -1,5 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from typing import Any, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax.numpy as jnp
 import numpy as np
@@ -96,7 +96,7 @@ def scaled_dot_general(
 
 
 @core.register_scaled_lax_op
-def scaled_conv_general_dilated(lhs: ScaledArray, rhs: ScaledArray, **params) -> ScaledArray:
+def scaled_conv_general_dilated(lhs: ScaledArray, rhs: ScaledArray, **params: Dict[str, Any]) -> ScaledArray:
     assert isinstance(lhs, ScaledArray)
     assert isinstance(rhs, ScaledArray)
     data = lax.conv_general_dilated_p.bind(lhs.data, rhs.data, **params)

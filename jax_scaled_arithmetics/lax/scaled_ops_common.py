@@ -28,7 +28,7 @@ def _get_data(val: Any) -> Array:
     return val
 
 
-def check_scalar_scales(*args: ScaledArray):
+def check_scalar_scales(*args: ScaledArray) -> Array:
     """Check all ScaledArrays have scalar scaling."""
     for val in args:
         assert np.ndim(val.scale) == 0
