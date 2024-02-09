@@ -1,9 +1,10 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from functools import partial
+from typing import Sequence
 
 import jax
 
-from jax_scaled_arithmetics.core import debug_callback
+from jax_scaled_arithmetics.core import Array, debug_callback
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(0,))
@@ -24,12 +25,12 @@ def debug_callback_grad_bwd(f, _, args_grad):
 debug_callback_grad.defvjp(debug_callback_grad_fwd, debug_callback_grad_bwd)
 
 
-def debug_print(fmt: str, *args):
+def debug_print(fmt: str, *args: Array) -> Sequence[Array]:
     """Debug print of a collection of tensors."""
     debug_callback(lambda *args: print(fmt.format(*args)), *args)
     return args
 
 
-def debug_print_grad(fmt: str, *args):
+def debug_print_grad(fmt: str, *args: Array) -> Sequence[Array]:
     """Debug print of gradients of a collection of tensors."""
     return debug_callback_grad(lambda *args: print(fmt.format(*args)), *args)

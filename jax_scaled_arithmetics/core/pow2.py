@@ -108,7 +108,7 @@ def pow2_decompose_abstract_eval(
 
 
 def pow2_decompose_mlir_lowering(
-    ctx: LoweringRuleContext, *args: Union[ir.Value, Sequence[ir.Value]], **params
+    ctx: LoweringRuleContext, *args: Union[ir.Value, Sequence[ir.Value]], **params: Dict[str, Any]
 ) -> Sequence[Union[ir.Value, Sequence[ir.Value]]]:
     scale_dtype = params["scale_dtype"]
     mode = params["mode"]

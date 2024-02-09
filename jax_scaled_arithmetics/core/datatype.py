@@ -97,7 +97,7 @@ class ScaledArray:
         """Abstract value of the scaled array, i.e. shape and dtype."""
         return ShapedArray(self.data.shape, self.data.dtype)
 
-    def astype(self, dtype) -> "ScaledArray":
+    def astype(self, dtype: DTypeLike) -> "ScaledArray":
         """Convert the ScaledArray to a dtype.
         NOTE: only impacting `data` field, not the `scale` tensor.
         """

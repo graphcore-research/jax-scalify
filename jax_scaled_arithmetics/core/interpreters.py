@@ -345,20 +345,22 @@ def jaxpr_eqn_bind(eqn: core.JaxprEqn, invals: Sequence[core.ShapedArray]) -> Se
     return outvals
 
 
-def autoscale_jaxpr(jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *args: ScalifyTracerArray):
+def autoscale_jaxpr(
+    jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *args: ScalifyTracerArray
+) -> Sequence[ScalifyTracerArray]:
     env: Dict[core.Var, ScalifyTracerArray] = {}
     # Check dtype consistency between normal and scaled modes.
     safe_check_dtypes: bool = False
     # AutoScale config to use.
     autoscale_cfg = get_autoscale_config()
 
-    def read(var) -> ScalifyTracerArray:
+    def read(var: core.Var) -> ScalifyTracerArray:
         if type(var) is core.Literal:
             # Wrap the constant in tracer array.
             return ScalifyTracerArray(var.val)
         return env[var]
 
-    def write(var, val: ScalifyTracerArray):
+    def write(var: core.Var, val: ScalifyTracerArray) -> None:
         env[var] = val
 
     # A few initial checks to make sure there is consistency.
