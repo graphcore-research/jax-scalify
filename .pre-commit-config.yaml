@@ -13,7 +13,7 @@ repos:
     -   id: requirements-txt-fixer
     -   id: trailing-whitespace
 - repo: https://github.com/PyCQA/isort
-  rev: 5.12.0
+  rev: 5.13.2
   hooks:
     - id: isort
       args: [--profile, black]
@@ -23,16 +23,16 @@ repos:
     - id: pyupgrade
       args: [--py38-plus]
 - repo: https://github.com/PyCQA/flake8
-  rev: 6.1.0
+  rev: 7.0.0
   hooks:
    - id: flake8
      args: ['--ignore=E501,E203,E731,W503']
 - repo: https://github.com/psf/black
-  rev: 23.11.0
+  rev: 24.1.1
   hooks:
     - id: black
 - repo: https://github.com/pre-commit/mirrors-mypy
-  rev: v1.6.1
+  rev: v1.8.0
   hooks:
     - id: mypy
       additional_dependencies: [types-dataclasses, numpy]
