@@ -23,6 +23,7 @@ from jax_scaled_arithmetics.lax import (
     scaled_reshape,
     scaled_rev,
     scaled_select_n,
+    scaled_sign,
     scaled_slice,
     scaled_transpose,
 )
@@ -103,6 +104,13 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
         assert isinstance(z, ScaledArray)
         assert z.scale == x.scale
         npt.assert_array_almost_equal(z.data, x.data.T)
+
+    def test__scaled_sign__proper_scaling(self):
+        x = scaled_array(self.rs.rand(3, 5), 2, dtype=np.float32)
+        z = scaled_sign(x)
+        assert isinstance(z, ScaledArray)
+        assert z.scale == 1
+        npt.assert_array_equal(z.data, lax.sign(x.data))
 
     def test__scaled_rev__proper_scaling(self):
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float32)
