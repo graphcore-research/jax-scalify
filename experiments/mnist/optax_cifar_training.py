@@ -25,6 +25,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import numpy.random as npr
+import optax
 from jax import grad, jit, lax
 
 import jax_scaled_arithmetics as jsa
@@ -65,6 +66,9 @@ def predict(params, inputs):
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
 
+    # jsa.ops.debug_callback(partial(print_mean_std, "Logits"), logits)
+    # (logits,) = jsa.ops.debug_callback_grad(partial(print_mean_std, "LogitsGrad"), logits)
+
     # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
     logits = jsa.ops.dynamic_rescale_l2_grad(logits)
     output = logits - logsumexp(logits, axis=1, keepdims=True)
@@ -86,24 +90,23 @@ def accuracy(params, batch):
 
 
 if __name__ == "__main__":
-    width = 2048
-    lr = 1e-4
-    use_autoscale = True
+    width = 256
+    lr = 1e-3
+    use_autoscale = False
+    training_dtype = np.float32
     autoscale = jsa.autoscale if use_autoscale else lambda f: f
 
     layer_sizes = [3072, width, width, 10]
     param_scale = 1.0
-
-    step_size = lr
     num_epochs = 10
     batch_size = 128
-    training_dtype = np.float16
     scale_dtype = np.float32
 
     train_images, train_labels, test_images, test_labels = datasets.cifar()
     num_train = train_images.shape[0]
     num_complete_batches, leftover = divmod(num_train, batch_size)
     num_batches = num_complete_batches + bool(leftover)
+    # num_batches = 2
 
     def data_stream():
         rng = npr.RandomState(0)
@@ -115,16 +118,23 @@ if __name__ == "__main__":
 
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
+    params = jax.tree_map(lambda v: v.astype(training_dtype), params)
     # Transform parameters to `ScaledArray` and proper dtype.
+    optimizer = optax.adam(learning_rate=lr, eps=1e-5)
+    opt_state = optimizer.init(params)
+
     if use_autoscale:
         params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
+
     params = jax.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
     @autoscale
-    def update(params, batch):
+    def update(params, batch, opt_state):
         grads = grad(loss)(params, batch)
-        return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
+        updates, opt_state = optimizer.update(grads, opt_state)
+        params = optax.apply_updates(params, updates)
+        return params, opt_state
 
     for epoch in range(num_epochs):
         start_time = time.time()
@@ -136,7 +146,7 @@ if __name__ == "__main__":
             batch = jax.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
             with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
-                params = update(params, batch)
+                params, opt_state = update(params, batch, opt_state)
 
         epoch_time = time.time() - start_time
 
