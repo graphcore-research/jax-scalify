@@ -55,6 +55,10 @@ The main dependencies are `numpy`, `jax` and `chex` libraries.
 ```bash
 pip install jax==0.3.16+ipu jaxlib==0.3.15+ipu.sdk320 -f https://graphcore-research.github.io/jax-experimental/wheels.html
 ```
+Here are the common JAX libraries compatible with IPU:
+```bash
+pip install chex==0.1.6 flax==0.6.4 equinox==0.7.0 jaxtyping==0.2.8s
+```
 
 ## Documentation
 
