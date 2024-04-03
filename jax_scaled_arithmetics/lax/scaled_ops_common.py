@@ -316,3 +316,17 @@ def scaled_cos(val: ScaledArray) -> ScaledArray:
 @core.register_scaled_lax_op
 def scaled_sin(val: ScaledArray) -> ScaledArray:
     return scaled_op_default_translation(lax.sin_p, [val])
+
+
+@core.register_scaled_lax_op
+def scaled_integer_pow(A: ScaledArray, y: int) -> ScaledArray:
+    output_scale = lax.integer_pow(A.scale, y)
+    output_data = lax.integer_pow(A.data, y)
+    return ScaledArray(output_data, output_scale)
+
+
+@core.register_scaled_lax_op
+def scaled_sqrt(val: ScaledArray) -> ScaledArray:
+    output_scale = lax.sqrt(val.scale)
+    output_data = lax.sqrt(val.data)
+    return ScaledArray(output_data, output_scale)
