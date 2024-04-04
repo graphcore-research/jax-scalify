@@ -216,7 +216,7 @@ def as_scaled_array(val: Any, scale: Optional[ArrayLike] = None) -> ScaledArray:
     Returns:
         Scaled array instance.
     """
-    return jax.tree_map(lambda x: as_scaled_array_base(x, scale), val, is_leaf=is_scaled_leaf)
+    return jax.tree_util.tree_map(lambda x: as_scaled_array_base(x, scale), val, is_leaf=is_scaled_leaf)
 
 
 def asarray_base(val: Any, dtype: DTypeLike = None) -> GenericArray:
@@ -239,7 +239,7 @@ def asarray(val: Any, dtype: DTypeLike = None) -> GenericArray:
     Args:
         dtype: Optional dtype of the final array.
     """
-    return jax.tree_map(lambda x: asarray_base(x, dtype), val, is_leaf=is_scaled_leaf)
+    return jax.tree_util.tree_map(lambda x: asarray_base(x, dtype), val, is_leaf=is_scaled_leaf)
 
 
 def is_numpy_scalar_or_array(val):
