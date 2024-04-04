@@ -132,7 +132,6 @@ class Pow2DecomposePrimitveTests(chex.TestCase):
         assert val_mant.dtype == val.dtype
         assert val_mant.shape == ()
         assert type(val_mant) in {type(val), np.ndarray}
-        print(mant, val_mant, dtype)
         npt.assert_equal(val_mant, mant)
         # Should be consistent with `pow2_round_down`. bitwise, not approximation.
         npt.assert_equal(mant * pow2_round_down(val), val)

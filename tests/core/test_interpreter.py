@@ -242,7 +242,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         scaled_fn = self.variant(autoscale(fn))
         scaled_output = scaled_fn(*inputs)
         # Normal JAX path, without scaled arrays.
-        raw_inputs = jax.tree_map(np.asarray, inputs, is_leaf=is_scaled_leaf)
+        raw_inputs = jax.tree_util.tree_map(np.asarray, inputs, is_leaf=is_scaled_leaf)
         expected_output = self.variant(fn)(*raw_inputs)
 
         # Do we re-construct properly the output type (i.e. handling Pytree properly)?

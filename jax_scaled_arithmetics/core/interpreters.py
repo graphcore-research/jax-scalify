@@ -313,7 +313,7 @@ def autoscale(fun):
         if len(kwargs) > 0:
             raise NotImplementedError("`autoscale` JAX interpreter not supporting named tensors at present.")
 
-        aval_args = jax.tree_map(_get_aval, args, is_leaf=is_scaled_leaf)
+        aval_args = jax.tree_util.tree_map(_get_aval, args, is_leaf=is_scaled_leaf)
         # Get jaxpr of unscaled/normal graph. Getting output Pytree shape as well.
         closed_jaxpr, outshape = jax.make_jaxpr(fun, return_shape=True)(*aval_args, **kwargs)
         out_leaves, out_pytree = jax.tree_util.tree_flatten(outshape)
