@@ -1,6 +1,6 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -13,7 +13,10 @@ from numpy.typing import ArrayLike, DTypeLike, NDArray
 from .pow2 import Pow2RoundMode, pow2_decompose
 from .typing import Array, ArrayTypes
 
-GenericArray = Union[Array, np.ndarray[Any, Any]]
+if TYPE_CHECKING:
+    GenericArray = Union[Array, np.ndarray[Any, Any]]
+else:
+    GenericArray = Union[Array, np.ndarray]
 
 
 @register_pytree_node_class
