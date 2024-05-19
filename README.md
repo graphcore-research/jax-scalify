@@ -73,3 +73,4 @@ pip install pre-commit
 pre-commit run --all-files
 pytest -v ./tests
 ```
+Python wheel can be built with the usual command `python -m build`.
