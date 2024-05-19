@@ -4,7 +4,7 @@ version = "0.1"
 description="JAX Scaled Arithmetics."
 readme = "README.md"
 authors = [
-  { name = "Graphcore Research", email = "contact@graphcore.ai" },
+  { name = "Graphcore Research", email = "paulb@graphcore.ai" },
 ]
 requires-python = ">=3.8"
 classifiers = [
@@ -31,7 +31,7 @@ Website = "https://github.com/graphcore-research/jax-scaled-arithmetics/#readme"
 test = ["pytest"]
 
 [tool.setuptools]
-packages = ["jax_scaled_arithmetics"]
+packages = ["jax_scaled_arithmetics", "jax_scaled_arithmetics.core", "jax_scaled_arithmetics.lax", "jax_scaled_arithmetics.ops"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

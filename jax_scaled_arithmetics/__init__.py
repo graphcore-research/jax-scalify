@@ -1,5 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from . import lax, ops
+from . import core, lax, ops
 from ._version import __version__
 from .core import (  # noqa: F401
     AutoScaleConfig,
