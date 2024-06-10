@@ -15,6 +15,7 @@ from jax_scaled_arithmetics.core import (
     Shape,
     as_scaled_array,
     get_scale_dtype,
+    is_static_anyscale,
     is_static_zero,
     safe_div,
 )
@@ -223,10 +224,10 @@ def scaled_le(lhs: ScaledArray, rhs: ScaledArray) -> Array:
 def scaled_minmax(prim: jax.core.Primitive, lhs: ScaledArray, rhs: ScaledArray) -> ScaledArray:
     """General min/max scaled translation: propagating the largest input scale."""
     check_scalar_scales(lhs, rhs)
-    # Specific rule if lhs/rhs is zero => propagate the other term scale.
-    if np.all(is_static_zero(lhs)):
+    # Specific rule if lhs/rhs is zero or inf => propagate the other term scale.
+    if np.all(is_static_anyscale(lhs)):
         return ScaledArray(prim.bind(lhs.data, rhs.data), rhs.scale)
-    if np.all(is_static_zero(rhs)):
+    if np.all(is_static_anyscale(rhs)):
         return ScaledArray(prim.bind(lhs.data, rhs.data), lhs.scale)
 
     # Power-of-2 stable!

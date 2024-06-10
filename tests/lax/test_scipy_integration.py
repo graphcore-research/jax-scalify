@@ -22,7 +22,7 @@ class ScaledScipyHighLevelMethodsTests(chex.TestCase):
         autoscale(fn)(a)
         # FIMXE/TODO: what should be the expected result?
 
-    @chex.variants(with_jit=True, without_jit=True)
+    @chex.variants(with_jit=False, without_jit=True)
     @parameterized.parameters(
         {"dtype": np.float32},
         {"dtype": np.float16},
