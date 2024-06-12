@@ -158,14 +158,26 @@ class ScaledTranslationBinaryOpsTests(chex.TestCase):
         assert np.isfinite(z.scale)
         npt.assert_array_almost_equal(z, prim.bind(np.asarray(x, np.float32), np.asarray(y, np.float32)), decimal=6)
 
-    @parameterized.parameters(
-        {"prim": lax.max_p},
-        {"prim": lax.min_p},
+    @parameterized.product(
+        prim=[lax.min_p, lax.max_p],
     )
     def test__scaled_minmax__static_zero_scale_propagation(self, prim):
         scaled_op, _ = find_registered_scaled_op(prim)
         x = scaled_array([-1.0, 2.0], 4.0, dtype=np.float32)
         y = scaled_array([1.5, 4.5], 0.0, dtype=np.float32)
+        z = scaled_op(x, y)
+        assert isinstance(z, ScaledArray)
+        assert z.dtype == x.dtype
+        # Keep the lhs scale.
+        npt.assert_almost_equal(z.scale, 4.0)
+
+    @parameterized.product(
+        prim=[lax.min_p, lax.max_p],
+    )
+    def test__scaled_minmax__static_inf_scale_propagation(self, prim):
+        scaled_op, _ = find_registered_scaled_op(prim)
+        x = scaled_array([-1.0, 2.0], 4.0, dtype=np.float32, npapi=np)
+        y = scaled_array([-np.inf, np.inf], np.inf, dtype=np.float32, npapi=np)
         z = scaled_op(x, y)
         assert isinstance(z, ScaledArray)
         assert z.dtype == x.dtype

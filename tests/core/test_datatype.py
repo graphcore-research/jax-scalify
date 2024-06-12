@@ -13,6 +13,7 @@ from jax_scaled_arithmetics.core import (
     asarray,
     get_scale_dtype,
     is_scaled_leaf,
+    is_static_anyscale,
     is_static_one_scalar,
     is_static_zero,
     make_scaled_scalar,
@@ -302,6 +303,25 @@ class ScaledArrayDataclassTests(chex.TestCase):
     )
     def test__is_static_zero__proper_all_result(self, val, result):
         all_zero = np.all(is_static_zero(val))
+        assert all_zero == result
+
+    @parameterized.parameters(
+        {"val": 0, "result": True},
+        {"val": 0.0, "result": True},
+        {"val": np.inf, "result": True},
+        {"val": np.int32(0), "result": True},
+        {"val": np.float16(0), "result": True},
+        {"val": np.float16(-np.inf), "result": True},
+        {"val": np.array([1, 2]), "result": False},
+        {"val": np.array([0, 0.0, -np.inf, np.inf]), "result": True},
+        {"val": jnp.array([0, 0.0, np.inf]), "result": False},
+        {"val": ScaledArray(np.array([0, 0.0]), jnp.array(2.0)), "result": True},
+        {"val": ScaledArray(jnp.array([3, 4.0]), np.array(0.0)), "result": True},
+        {"val": ScaledArray(jnp.array([3, 4.0]), np.array(np.inf)), "result": True},
+        {"val": ScaledArray(jnp.array([3, 4.0]), jnp.array(0.0)), "result": False},
+    )
+    def test__is_static_anyscale__proper_all_result(self, val, result):
+        all_zero = np.all(is_static_anyscale(val))
         assert all_zero == result
 
     @parameterized.parameters(

@@ -10,10 +10,10 @@ import numpy as np
 # Type aliasing. To be compatible with JAX 0.3 as well.
 if jax.__version_info__[1] > 3:
     Array = jax.Array
-    ArrayTypes = (jax.Array,)
+    ArrayTypes = (jax.Array, jax.stages.ArgInfo)
 else:
     Array = jaxlib.xla_extension.DeviceArray
-    ArrayTypes = (jaxlib.xla_extension.DeviceArray, jax.interpreters.partial_eval.DynamicJaxprTracer)  # type:ignore
+    ArrayTypes = (jaxlib.xla_extension.DeviceArray, jax.interpreters.partial_eval.DynamicJaxprTracer)
 
 
 def get_numpy_api(val: Any) -> Any:

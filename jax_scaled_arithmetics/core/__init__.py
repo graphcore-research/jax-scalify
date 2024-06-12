@@ -7,6 +7,7 @@ from .datatype import (  # noqa: F401
     asarray,
     get_scale_dtype,
     is_scaled_leaf,
+    is_static_anyscale,
     is_static_one_scalar,
     is_static_zero,
     make_scaled_scalar,

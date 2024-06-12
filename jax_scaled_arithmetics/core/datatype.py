@@ -268,6 +268,32 @@ def is_static_zero(val: Union[Array, ScaledArray]) -> Array:
     return np.zeros(val.shape, dtype=np.bool_)
 
 
+def is_static_anyscale(val: Union[Array, ScaledArray]) -> Array:
+    """Is a scaled array a static anyscale values (i.e. 0/inf/-inf during JAX tracing as well)?
+
+    Returns a boolean Numpy array of the shape of the input.
+    """
+
+    def np_anyscale(arr):
+        # Check if 0, np.inf or -np.inf
+        absarr = np.abs(arr)
+        return np.logical_or(np.equal(absarr, 0), np.equal(absarr, np.inf))
+
+    if is_numpy_scalar_or_array(val):
+        return np_anyscale(val)
+    if isinstance(val, ScaledArray):
+        # TODO: deal with 0 * inf issue?
+        data_mask = (
+            np_anyscale(val.data) if is_numpy_scalar_or_array(val.data) else np.zeros(val.data.shape, dtype=np.bool_)
+        )
+        scale_mask = (
+            np_anyscale(val.scale) if is_numpy_scalar_or_array(val.scale) else np.zeros(val.scale.shape, dtype=np.bool_)
+        )
+        return np.logical_or(data_mask, scale_mask)
+    # By default: can't decide.
+    return np.zeros(val.shape, dtype=np.bool_)
+
+
 def is_static_one_scalar(val: Array) -> Union[bool, np.bool_]:
     """Is a scaled array a static one scalar value (i.e. one during JAX tracing as well)?"""
     if isinstance(val, (int, float)):
