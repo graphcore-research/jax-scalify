@@ -5,7 +5,7 @@ import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
-from jax_scaled_arithmetics.core.utils import Array, python_scalar_as_numpy, safe_div, safe_reciprocal
+from jax_scalify.core.utils import Array, python_scalar_as_numpy, safe_div, safe_reciprocal
 
 
 class SafeDivOpTests(chex.TestCase):

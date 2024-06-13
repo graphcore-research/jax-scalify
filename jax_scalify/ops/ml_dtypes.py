@@ -4,7 +4,7 @@ from functools import partial
 import jax
 import ml_dtypes
 
-from jax_scaled_arithmetics.core import Array, DTypeLike
+from jax_scalify.core import Array, DTypeLike
 
 from .rescaling import fn_bwd_identity_fwd, fn_fwd_identity_bwd
 

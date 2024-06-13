@@ -6,8 +6,8 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from numpy.typing import NDArray
 
-from jax_scaled_arithmetics.core import Array, AutoScaleConfig, ScaledArray, autoscale, scaled_array
-from jax_scaled_arithmetics.lax.base_scaling_primitives import (
+from jax_scalify.core import Array, ScaledArray, ScalifyConfig, scaled_array, scalify
+from jax_scalify.lax.base_scaling_primitives import (
     get_data_scale,
     rebalance,
     scaled_set_scaling,
@@ -43,13 +43,13 @@ class SetScalingPrimitiveTests(chex.TestCase):
             return set_scaling(arr, scale)
 
         scale = np.array(0, dtype=arr.dtype)
-        out = self.variant(autoscale(fn))(arr, scale)
+        out = self.variant(scalify(fn))(arr, scale)
         assert isinstance(out, ScaledArray)
         npt.assert_array_almost_equal(out.scale, 0)
         npt.assert_array_almost_equal(out.data, 0)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__set_scaling_primitive__proper_result_without_autoscale(self):
+    def test__set_scaling_primitive__proper_result_without_scalify(self):
         def fn(arr, scale):
             return set_scaling(arr, scale)
 
@@ -70,11 +70,11 @@ class SetScalingPrimitiveTests(chex.TestCase):
         {"arr": scaled_array([-1.0, 2.0], 2.0, dtype=np.float32), "scale": scaled_array(1.0, 4.0, dtype=np.float32)},
         {"arr": scaled_array([-1.0, 2.0], 2.0, dtype=np.float16), "scale": scaled_array(1.0, 4.0, dtype=np.float32)},
     )
-    def test__set_scaling_primitive__proper_result_with_autoscale(self, arr, scale):
+    def test__set_scaling_primitive__proper_result_with_scalify(self, arr, scale):
         def fn(arr, scale):
             return set_scaling(arr, scale)
 
-        fn = self.variant(autoscale(fn))
+        fn = self.variant(scalify(fn))
         out = fn(arr, scale)
         # Unchanged output tensor, with proper dtype.
         assert isinstance(out, ScaledArray)
@@ -114,7 +114,7 @@ class StopScalingPrimitiveTests(chex.TestCase):
         npt.assert_array_equal(output, values)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__stop_scaling_primitive__proper_result_without_autoscale(self):
+    def test__stop_scaling_primitive__proper_result_without_scalify(self):
         def fn(arr):
             # Testing both variants.
             return stop_scaling(arr), stop_scaling(arr, dtype=np.float16)
@@ -127,12 +127,12 @@ class StopScalingPrimitiveTests(chex.TestCase):
         npt.assert_array_almost_equal(out1, arr)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__stop_scaling_primitive__proper_result_with_autoscale(self):
+    def test__stop_scaling_primitive__proper_result_with_scalify(self):
         def fn(arr):
             # Testing both variants.
             return stop_scaling(arr), stop_scaling(arr, dtype=np.float16)
 
-        fn = self.variant(autoscale(fn))
+        fn = self.variant(scalify(fn))
         arr = scaled_array([-1.0, 2.0], 3.0, dtype=np.float32)
         out0, out1 = fn(arr)
         assert isinstance(out0, Array)
@@ -145,10 +145,10 @@ class StopScalingPrimitiveTests(chex.TestCase):
 
 class GetDataScalePrimitiveTests(chex.TestCase):
     @chex.variants(with_jit=True, without_jit=True)
-    def test__get_data_scale_primitive__proper_result_without_autoscale(self):
+    def test__get_data_scale_primitive__proper_result_without_scalify(self):
         def fn(arr):
             # Set a default scale dtype.
-            with AutoScaleConfig(scale_dtype=np.float32):
+            with ScalifyConfig(scale_dtype=np.float32):
                 return get_data_scale(arr)
 
         fn = self.variant(fn)
@@ -160,11 +160,11 @@ class GetDataScalePrimitiveTests(chex.TestCase):
         npt.assert_equal(scale, np.array(1, np.float32))
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__get_data_scale_primitive__proper_result_with_autoscale(self):
+    def test__get_data_scale_primitive__proper_result_with_scalify(self):
         def fn(arr):
             return get_data_scale(arr)
 
-        fn = self.variant(autoscale(fn))
+        fn = self.variant(scalify(fn))
         arr = scaled_array([2, 3], np.float16(4), dtype=np.float16)
         data, scale = fn(arr)
         npt.assert_array_equal(data, arr.data)

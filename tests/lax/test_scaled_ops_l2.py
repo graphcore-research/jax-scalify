@@ -5,8 +5,8 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax import lax
 
-from jax_scaled_arithmetics.core import ScaledArray, find_registered_scaled_op, scaled_array
-from jax_scaled_arithmetics.lax import scaled_div, scaled_dot_general, scaled_mul, scaled_reduce_window_sum
+from jax_scalify.core import ScaledArray, find_registered_scaled_op, scaled_array
+from jax_scalify.lax import scaled_div, scaled_dot_general, scaled_mul, scaled_reduce_window_sum
 
 
 class ScaledTranslationDotPrimitivesTests(chex.TestCase):

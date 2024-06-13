@@ -7,13 +7,13 @@ from jax import core
 from jax.interpreters import mlir
 from jax.interpreters.mlir import LoweringRuleContext, ir, ir_constant
 
-from jax_scaled_arithmetics.core import (
+from jax_scalify.core import (
     Array,
     DTypeLike,
     ScaledArray,
     ScaledPrimitiveType,
     asarray,
-    get_autoscale_config,
+    get_scalify_config,
     is_static_one_scalar,
     register_scaled_op,
     safe_div,
@@ -26,7 +26,7 @@ set_scaling_p = core.Primitive("set_scaling_p")
 In standard JAX, this is just an identity operation, ignoring the `scale`
 input, just returning unchanged the `data` component.
 
-In JAX Scaled Arithmetics/AutoScale mode, it will rebalance the data term to
+In JAX Scalify mode, it will rebalance the data term to
 return a ScaledArray semantically equivalent.
 
 NOTE: there is specific corner case of passing zero to `set_scaling`. In this
@@ -102,8 +102,7 @@ stop_scaling_p = core.Primitive("stop_scaling_p")
 
 In standard JAX, this is just an identity operation (with optional casting).
 
-In JAX Scaled Arithmetics/AutoScale mode, it will return the value tensor,
-with optional casting.
+In JAX Scalify mode, it will return the value tensor, with optional casting.
 
 Similar in principle to `jax.lax.stop_gradient`
 """
@@ -160,14 +159,14 @@ arrays.
 
 In standard JAX, this is just an operation returning the input array and a constant scalar(1).
 
-In JAX Scaled Arithmetics/AutoScale mode, it will return the pair of data and scale tensors
+In JAX Scalify mode, it will return the pair of data and scale tensors
 from a ScaledArray.
 """
 
 
 def get_scale_dtype() -> Optional[DTypeLike]:
-    """Get the scale dtype, if set in the AutoScale config."""
-    return get_autoscale_config().scale_dtype
+    """Get the scale dtype, if set in the Scalify config."""
+    return get_scalify_config().scale_dtype
 
 
 def get_data_scale(values: Array) -> Array:
@@ -208,10 +207,10 @@ def get_data_scale_mlir_lowering(
 def scaled_get_data_scale(values: ScaledArray) -> Array:
     """Scaled `get_data_scale` implementation: return scale tensor."""
     scale_dtype = get_scale_dtype()
-    # Mis-match may potentially create issues (i.e. not equivalent scale dtype after autoscale tracer)!
+    # Mis-match may potentially create issues (i.e. not equivalent scale dtype after scalify tracer)!
     if scale_dtype != values.scale.dtype:
         logging.warning(
-            f"Autoscale config scale dtype not matching ScaledArray scale dtype: '{values.scale.dtype}' vs '{scale_dtype}'. AutoScale graph transformation may fail because of that."
+            f"Scalify config scale dtype not matching ScaledArray scale dtype: '{values.scale.dtype}' vs '{scale_dtype}'. Scalify graph transformation may fail because of that."
         )
     return values.data, values.scale
 

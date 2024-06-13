@@ -28,7 +28,7 @@ import numpy.random as npr
 import optax
 from jax import grad, jit, lax
 
-import jax_scaled_arithmetics as jsa
+import jax_scalify as jsa
 
 
 def logsumexp(a, axis=None, keepdims=False):
@@ -92,9 +92,9 @@ def accuracy(params, batch):
 if __name__ == "__main__":
     width = 256
     lr = 1e-3
-    use_autoscale = False
+    use_scalify = False
     training_dtype = np.float32
-    autoscale = jsa.autoscale if use_autoscale else lambda f: f
+    scalify = jsa.scalify if use_scalify else lambda f: f
 
     layer_sizes = [3072, width, width, 10]
     param_scale = 1.0
@@ -123,13 +123,13 @@ if __name__ == "__main__":
     optimizer = optax.adam(learning_rate=lr, eps=1e-5)
     opt_state = optimizer.init(params)
 
-    if use_autoscale:
+    if use_scalify:
         params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
 
     params = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
-    @autoscale
+    @scalify
     def update(params, batch, opt_state):
         grads = grad(loss)(params, batch)
         updates, opt_state = optimizer.update(grads, opt_state)
@@ -141,11 +141,11 @@ if __name__ == "__main__":
         for _ in range(num_batches):
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
-            if use_autoscale:
+            if use_scalify:
                 batch = jsa.as_scaled_array(batch, scale=scale_dtype(param_scale))
             batch = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
-            with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
+            with jsa.ScalifyConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
                 params, opt_state = update(params, batch, opt_state)
 
         epoch_time = time.time() - start_time

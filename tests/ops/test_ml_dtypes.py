@@ -8,8 +8,8 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from numpy.typing import NDArray
 
-from jax_scaled_arithmetics.core import autoscale, scaled_array
-from jax_scaled_arithmetics.ops import cast_ml_dtype
+from jax_scalify.core import scaled_array, scalify
+from jax_scalify.ops import cast_ml_dtype
 
 
 class CastMLDtypeTests(chex.TestCase):
@@ -29,10 +29,10 @@ class CastMLDtypeTests(chex.TestCase):
         {"ml_dtype": ml_dtypes.float8_e4m3fn},
         {"ml_dtype": ml_dtypes.float8_e5m2},
     )
-    def test__cast_ml_dtype__autoscale_compatiblity(self, ml_dtype):
+    def test__cast_ml_dtype__scalify_compatiblity(self, ml_dtype):
         values: NDArray[np.float16] = np.array([17, -17, 8, 1, 9, 11, 18], np.float16)
         arr = scaled_array(values, np.float32(1))
-        out = autoscale(partial(cast_ml_dtype, dtype=ml_dtype))(arr)
+        out = scalify(partial(cast_ml_dtype, dtype=ml_dtype))(arr)
 
         npt.assert_array_equal(out.scale, arr.scale)
         npt.assert_array_equal(out, np.asarray(arr.data).astype(ml_dtype))

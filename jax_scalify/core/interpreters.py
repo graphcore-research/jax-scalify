@@ -31,11 +31,11 @@ from .utils import python_scalar_as_numpy
 
 
 @dataclass(frozen=True)
-class AutoScaleConfig:
-    """AutoScale configuration/parameters when tracing a graph.
+class ScalifyConfig:
+    """Scalify configuration/parameters when tracing a graph.
 
     NOTE: this config can be locally changed using a Python context manager:
-    `with AutoScaleConfig(...):`
+    `with ScalifyConfig(...):`
 
     Args:
         rounding_mode: Power-of-2 rounding mode.
@@ -46,27 +46,27 @@ class AutoScaleConfig:
     scale_dtype: DTypeLike = None
 
     def __enter__(self):
-        global _autoscale_config_stack
-        _autoscale_config_stack.append(self)
+        global _scalify_config_stack
+        _scalify_config_stack.append(self)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        global _autoscale_config_stack
-        _autoscale_config_stack.pop()
+        global _scalify_config_stack
+        _scalify_config_stack.pop()
 
 
-# AutoScale config stack.
-_autoscale_config_stack = [AutoScaleConfig()]
+# Scalify config stack.
+_scalify_config_stack = [ScalifyConfig()]
 
 
-def get_autoscale_config() -> AutoScaleConfig:
-    """Get current/local autoscale config."""
-    return _autoscale_config_stack[-1]
+def get_scalify_config() -> ScalifyConfig:
+    """Get current/local scalify config."""
+    return _scalify_config_stack[-1]
 
 
 class ScaledPrimitiveType(IntEnum):
     """Scale (JAX) primitive type.
 
-    This enum described the behaviour when `autoscale` is
+    This enum described the behaviour when `scalify` is
     tracing the graph.
 
     FORWARD: Forwarding scaling => only used if scaled inputs.
@@ -144,7 +144,7 @@ def register_scaled_op(
     Args:
         prim: JAX primitive.
         scaled_func: Scaled translation of the primitive. With the same interface.
-        scaled_type: Scaled primitive type => behaviour when `autoscale` tracing.
+        scaled_type: Scaled primitive type => behaviour when `scalify` tracing.
     """
     assert isinstance(prim, core.Primitive)
     # Can not register a jaxpr type op this way.
@@ -294,10 +294,10 @@ class ScalifyTracerArray:
         return self.array.to_array()
 
 
-def autoscale(fun):
-    """`autoscale` JAX graph transformation.
+def scalify(fun):
+    """`scalify` JAX graph transformation.
 
-    The `autoscale` graph transformation works in a forwarding mode:
+    The `scalify` graph transformation works in a forwarding mode:
         scaled arrays are forwarded to scaled primitives, which will generate scaled outputs.
 
     If no inputs to a JAX primitive are scaled -> the normal primitive is then called, generating a common
@@ -311,7 +311,7 @@ def autoscale(fun):
     @wraps(fun)
     def wrapped(*args, **kwargs):
         if len(kwargs) > 0:
-            raise NotImplementedError("`autoscale` JAX interpreter not supporting named tensors at present.")
+            raise NotImplementedError("`scalify` JAX interpreter not supporting named tensors at present.")
 
         aval_args = jax.tree_util.tree_map(_get_aval, args, is_leaf=is_scaled_leaf)
         # Get jaxpr of unscaled/normal graph. Getting output Pytree shape as well.
@@ -325,7 +325,7 @@ def autoscale(fun):
         inputs_tracer_flat = list(map(ScalifyTracerArray, inputs_scaled_flat))
         consts_tracer_flat = list(map(ScalifyTracerArray, closed_jaxpr.literals))
         # Trace the graph & convert to scaled one.
-        outputs_tracer_flat = autoscale_jaxpr(closed_jaxpr.jaxpr, consts_tracer_flat, *inputs_tracer_flat)
+        outputs_tracer_flat = scalify_jaxpr(closed_jaxpr.jaxpr, consts_tracer_flat, *inputs_tracer_flat)
         outputs_scaled_flat = [v.array for v in outputs_tracer_flat]
         # Reconstruct the output Pytree, with scaled arrays.
         # NOTE: this step is also handling single vs multi outputs.
@@ -345,14 +345,14 @@ def jaxpr_eqn_bind(eqn: core.JaxprEqn, invals: Sequence[core.ShapedArray]) -> Se
     return outvals
 
 
-def autoscale_jaxpr(
+def scalify_jaxpr(
     jaxpr: core.Jaxpr, consts: Sequence[ScalifyTracerArray], *args: ScalifyTracerArray
 ) -> Sequence[ScalifyTracerArray]:
     env: Dict[core.Var, ScalifyTracerArray] = {}
     # Check dtype consistency between normal and scaled modes.
     safe_check_dtypes: bool = False
-    # AutoScale config to use.
-    autoscale_cfg = get_autoscale_config()
+    # Scalify config to use.
+    scalify_cfg = get_scalify_config()
 
     def read(var: core.Var) -> ScalifyTracerArray:
         if type(var) is core.Literal:
@@ -411,7 +411,7 @@ def autoscale_jaxpr(
             )
         else:
             # Using scaled primitive. Automatic promotion of inputs to scaled array, when possible.
-            scaled_invals = [v.to_scaled_array(autoscale_cfg.scale_dtype) for v in invals_tracer]
+            scaled_invals = [v.to_scaled_array(scalify_cfg.scale_dtype) for v in invals_tracer]
             outvals = scaled_prim_fn(*scaled_invals, **eqn.params)
             if not eqn.primitive.multiple_results:
                 outvals = [outvals]
@@ -437,7 +437,7 @@ def autoscale_jaxpr(
 
 
 def scaled_pjit_translation(*args: ScalifyTracerArray, **kwargs: Any) -> Sequence[ScalifyTracerArray]:
-    """Scaled translation of `pjit`. Basically re-running `autoscale` on sub-jaxpr.
+    """Scaled translation of `pjit`. Basically re-running `scalify` on sub-jaxpr.
 
     NOTE: the `pjit` call will be kept, forwarding the proper parameters (shardings, ...).
     """
@@ -452,7 +452,7 @@ def scaled_pjit_translation(*args: ScalifyTracerArray, **kwargs: Any) -> Sequenc
 
     consts_tracer_flat = [ScalifyTracerArray(v) for v in closed_jaxpr.literals]
     # Generate the sub-scaled function, with proper `jax.jit` options.
-    subfunc = partial(autoscale_jaxpr, closed_jaxpr.jaxpr, consts_tracer_flat)
+    subfunc = partial(scalify_jaxpr, closed_jaxpr.jaxpr, consts_tracer_flat)
     subfunc.__name__ = name  # type:ignore
     subfunc = jax.jit(subfunc, inline=inline, keep_unused=keep_unused)
     outvals = subfunc(*args)
@@ -468,7 +468,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 def scaled_xla_call_translation(*args: ScalifyTracerArray, **kwargs: Any) -> Sequence[ScalifyTracerArray]:
-    """Scaled translation of `xla_call`. Basically re-running `autoscale` on sub-jaxpr.
+    """Scaled translation of `xla_call`. Basically re-running `scalify` on sub-jaxpr.
 
     Useful for JAX 0.3 compatibility
     """
@@ -483,7 +483,7 @@ def scaled_xla_call_translation(*args: ScalifyTracerArray, **kwargs: Any) -> Seq
 
     assert len(jaxpr.constvars) == 0
     # Generate the sub-scaled function, with proper `jax.jit` options.
-    subfunc = partial(autoscale_jaxpr, jaxpr, [])
+    subfunc = partial(scalify_jaxpr, jaxpr, [])
     subfunc.__name__ = name  # type:ignore
     subfunc = jax.jit(subfunc, inline=inline, keep_unused=keep_unused)
     outputs_scaled_flat = subfunc(*args)
@@ -508,7 +508,7 @@ def scaled_custom_jvp_call_translation(*args: ScalifyTracerArray, **params: Any)
     # JAX 0.3 compatibility.
     assert params.get("num_consts", 0) == 0
     # FIXME: re-call the custom_jvp decorator/bind.
-    call_subfunc = partial(autoscale_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
+    call_subfunc = partial(scalify_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
     return call_subfunc(*args)
 
 
@@ -523,7 +523,7 @@ def scaled_custom_vjp_call_translation(*args: ScalifyTracerArray, **params: Any)
     key_jaxpr = "fun_jaxpr"
     call_closed_jaxpr = params[key_jaxpr]
     # FIXME: re-call the custom_vjp decorator/bind.
-    call_subfunc = partial(autoscale_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
+    call_subfunc = partial(scalify_jaxpr, call_closed_jaxpr.jaxpr, call_closed_jaxpr.literals)
     return call_subfunc(*args)
 
 

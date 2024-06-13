@@ -8,19 +8,19 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from numpy.typing import NDArray
 
-from jax_scaled_arithmetics.core import (
+from jax_scalify.core import (
     Array,
-    AutoScaleConfig,
     Pow2RoundMode,
     ScaledArray,
+    ScalifyConfig,
     asarray,
-    autoscale,
-    get_autoscale_config,
+    get_scalify_config,
     is_scaled_leaf,
     register_scaled_op,
     scaled_array,
+    scalify,
 )
-from jax_scaled_arithmetics.core.interpreters import ScalifyTracerArray
+from jax_scalify.core.interpreters import ScalifyTracerArray
 
 
 class ScalifyTracerArrayTests(chex.TestCase):
@@ -136,17 +136,17 @@ class ScalifyTracerArrayTests(chex.TestCase):
         npt.assert_array_equal(np.asarray(scaled_out), data)
 
 
-class AutoScaleInterpreterTests(chex.TestCase):
+class ScalifyInterpreterTests(chex.TestCase):
     def test__register_scaled_op__error_if_already_registered(self):
         with self.assertRaises(KeyError):
             register_scaled_op(jax.lax.mul_p, lambda a, _: a)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__autoscale_interpreter__normal_jax_mode(self):
+    def test__scalify_interpreter__normal_jax_mode(self):
         def func(x):
             return x * 2
 
-        func = self.variant(autoscale(func))
+        func = self.variant(scalify(func))
         data: NDArray[np.float32] = np.array([1, 2], dtype=np.float32)
         out = func(data)
         # Proper behaviour!
@@ -158,11 +158,11 @@ class AutoScaleInterpreterTests(chex.TestCase):
         assert len(jaxpr.outvars) == 1
         assert len(jaxpr.eqns) == 1
 
-    def test__autoscale_interpreter__without_jit__proper_jaxpr_signature(self):
+    def test__scalify_interpreter__without_jit__proper_jaxpr_signature(self):
         def func(x):
             return x * 2
 
-        scaled_func = autoscale(func)
+        scaled_func = scalify(func)
         scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
         jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
         # Need 4 equations: 1 pow2_decompose + 2 mul + 1 cast.
@@ -175,11 +175,11 @@ class AutoScaleInterpreterTests(chex.TestCase):
         assert jaxpr.outvars[0].aval.shape == scaled_input.shape
         assert jaxpr.outvars[1].aval.shape == ()
 
-    def test__autoscale_interpreter__with_jit__proper_jaxpr_signature(self):
+    def test__scalify_interpreter__with_jit__proper_jaxpr_signature(self):
         def myfunc(x):
             return x * 2
 
-        scaled_func = autoscale(jax.jit(myfunc))
+        scaled_func = scalify(jax.jit(myfunc))
         scaled_input = scaled_array([1.0, 2.0], 3, dtype=np.float32)
         jaxpr = jax.make_jaxpr(scaled_func)(scaled_input).jaxpr
         # One main jit equation.
@@ -237,9 +237,9 @@ class AutoScaleInterpreterTests(chex.TestCase):
         #     "inputs": [scaled_array([[-2.0], [0.5]], 0.5, dtype=np.float32)],
         # },
     )
-    def test__autoscale_decorator__proper_graph_transformation_and_result(self, fn, inputs):
-        # Autoscale function + (optional) jitting.
-        scaled_fn = self.variant(autoscale(fn))
+    def test__scalify_decorator__proper_graph_transformation_and_result(self, fn, inputs):
+        # Scalify function + (optional) jitting.
+        scaled_fn = self.variant(scalify(fn))
         scaled_output = scaled_fn(*inputs)
         # Normal JAX path, without scaled arrays.
         raw_inputs = jax.tree_util.tree_map(np.asarray, inputs, is_leaf=is_scaled_leaf)
@@ -259,7 +259,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
             npt.assert_array_almost_equal(scaled_out, exp_out, decimal=4)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__autoscale_decorator__promotion_broadcasted_scalar_array(self):
+    def test__scalify_decorator__promotion_broadcasted_scalar_array(self):
         def fn(sa, b):
             # Forcing broadcasting before the `lax.mul`
             b = jax.lax.broadcast_in_dim(b, sa.shape, ())
@@ -268,7 +268,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         sa = scaled_array([0.5, 1.0], np.float32(4.0), dtype=np.float32)
         b = jnp.array(4.0, dtype=np.float16)
 
-        scaled_fn = self.variant(autoscale(fn))
+        scaled_fn = self.variant(scalify(fn))
         sout = scaled_fn(sa, b)
         expected_out = fn(np.asarray(sa), b)
 
@@ -278,7 +278,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         npt.assert_array_equal(np.asarray(sout), expected_out)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__autoscale_decorator__custom_jvp__proper_graph_transformation_and_result(self):
+    def test__scalify_decorator__custom_jvp__proper_graph_transformation_and_result(self):
         # JAX official `jvp` example.
         @jax.custom_jvp
         def f(x, y):
@@ -295,12 +295,12 @@ class AutoScaleInterpreterTests(chex.TestCase):
         def fn(x, y):
             return jax.jvp(f, (x, y), (x, y))
 
-        # `autoscale` on `custom_jvp` method.
+        # `scalify` on `custom_jvp` method.
         scaled_inputs = (
             scaled_array([-2.0, 0.5], 0.5, dtype=np.float32),
             scaled_array([1.5, -4.5], 2, dtype=np.float32),
         )
-        scaled_primals, scaled_tangents = self.variant(autoscale(fn))(*scaled_inputs)
+        scaled_primals, scaled_tangents = self.variant(scalify(fn))(*scaled_inputs)
         # JAX default/expected values
         inputs = tuple(map(asarray, scaled_inputs))
         primals, tangents = self.variant(fn)(*inputs)
@@ -311,7 +311,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         npt.assert_array_almost_equal(scaled_tangents, tangents)
 
     @chex.variants(with_jit=True, without_jit=True)
-    def test__autoscale_decorator__custom_vjp__proper_graph_transformation_and_result(self):
+    def test__scalify_decorator__custom_vjp__proper_graph_transformation_and_result(self):
         # JAX official `vjp` example.
         @jax.custom_vjp
         def f(x, y):
@@ -330,12 +330,12 @@ class AutoScaleInterpreterTests(chex.TestCase):
             primals, f_vjp = jax.vjp(f, x, y)
             return primals, f_vjp(x * y)
 
-        # `autoscale` on `custom_jvp` method.
+        # `scalify` on `custom_jvp` method.
         scaled_inputs = (
             scaled_array([-2.0, 0.5], 0.5, dtype=np.float32),
             scaled_array([1.5, -4.5], 2, dtype=np.float32),
         )
-        scaled_primals, scaled_grads = self.variant(autoscale(fn))(*scaled_inputs)
+        scaled_primals, scaled_grads = self.variant(scalify(fn))(*scaled_inputs)
         # JAX default/expected values
         inputs = tuple(map(asarray, scaled_inputs))
         primals, grads = self.variant(fn)(*inputs)
@@ -346,16 +346,16 @@ class AutoScaleInterpreterTests(chex.TestCase):
             assert isinstance(sg, ScaledArray)
             npt.assert_array_almost_equal(sg, g)
 
-    def test__autoscale_config__default_values(self):
-        cfg = get_autoscale_config()
-        assert isinstance(cfg, AutoScaleConfig)
+    def test__scalify_config__default_values(self):
+        cfg = get_scalify_config()
+        assert isinstance(cfg, ScalifyConfig)
         assert cfg.rounding_mode == Pow2RoundMode.DOWN
         assert cfg.scale_dtype is None
 
-    def test__autoscale_config__context_manager(self):
-        with AutoScaleConfig(rounding_mode=Pow2RoundMode.NONE, scale_dtype=np.float32):
-            cfg = get_autoscale_config()
-            assert isinstance(cfg, AutoScaleConfig)
+    def test__scalify_config__context_manager(self):
+        with ScalifyConfig(rounding_mode=Pow2RoundMode.NONE, scale_dtype=np.float32):
+            cfg = get_scalify_config()
+            assert isinstance(cfg, ScalifyConfig)
             assert cfg.rounding_mode == Pow2RoundMode.NONE
             assert cfg.scale_dtype == np.float32
 
@@ -364,7 +364,7 @@ class AutoScaleInterpreterTests(chex.TestCase):
         {"scale_dtype": np.float16},
         {"scale_dtype": np.float32},
     )
-    def test__autoscale_config__scale_dtype_used_in_interpreter_promotion(self, scale_dtype):
+    def test__scalify_config__scale_dtype_used_in_interpreter_promotion(self, scale_dtype):
         def fn(x):
             # Sub-normal "learning rate" => can create issue when converting to FP16 scaled array.
             # return x * 3.123283386230469e-05
@@ -373,8 +373,8 @@ class AutoScaleInterpreterTests(chex.TestCase):
 
         expected_output = fn(np.float16(1))
 
-        with AutoScaleConfig(scale_dtype=scale_dtype):
+        with ScalifyConfig(scale_dtype=scale_dtype):
             scaled_input = scaled_array(np.array(2.0, np.float16), scale=scale_dtype(0.5))
-            scaled_output = self.variant(autoscale(fn))(scaled_input)
+            scaled_output = self.variant(scalify(fn))(scaled_input)
             assert scaled_output.scale.dtype == scale_dtype
             npt.assert_equal(np.asarray(scaled_output, dtype=np.float32), expected_output)

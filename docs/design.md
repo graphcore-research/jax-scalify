@@ -1,6 +1,6 @@
 <!-- pandoc ./docs/stable-scaled-arithmetics.md --pdf-engine=xelatex -o ./docs/stable-scaled-arithmetics.pdf -V geometry:margin=2cm -->
 
-# AutoScale: stable scaled arithmetics
+# Scalify: stable scaled arithmetics
 
 ## Introduction
 
@@ -63,7 +63,7 @@ Summary of how it would compare to existing methods (credits to @thecharlieblake
 | ~ perfect scale at initialisation | We can use the "unit scaling rules" to achieve approximately unit variance for the first fwd & bwd pass. Without this, our tensors immediately require re-scaling. Starting in the ideal range may mean few re-scalings are required. | Apply appropriate scaling factors to the output of our operations (as determined in the unit scaling work). | -->
 
 
-## AutoScale: JAX scaled arithmetics
+## JAX Scalify: end-to-end scaled arithmetics
 
 We focus here on a JAX implementation, but it should be possible to adopt a similar approach in Pytorch (with tracing or dynamo?). Modern ML frameworks expose their IR at the Python level, allowing users to perform complex transforms on the computational graph without any modification to the C++ backend (XLA, ...).
 

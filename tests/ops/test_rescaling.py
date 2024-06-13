@@ -4,8 +4,8 @@ import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
-from jax_scaled_arithmetics.core import ScaledArray, scaled_array
-from jax_scaled_arithmetics.ops import dynamic_rescale_l1, dynamic_rescale_l2, dynamic_rescale_max
+from jax_scalify.core import ScaledArray, scaled_array
+from jax_scalify.ops import dynamic_rescale_l1, dynamic_rescale_l2, dynamic_rescale_max
 
 
 class DynamicRescaleOpsTests(chex.TestCase):

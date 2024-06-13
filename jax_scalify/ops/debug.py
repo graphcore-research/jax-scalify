@@ -4,7 +4,7 @@ from typing import Sequence
 
 import jax
 
-from jax_scaled_arithmetics.core import Array, debug_callback
+from jax_scalify.core import Array, debug_callback
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(0,))

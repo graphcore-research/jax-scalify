@@ -27,7 +27,7 @@ import numpy as np
 import numpy.random as npr
 from jax import grad, jit, lax
 
-import jax_scaled_arithmetics as jsa
+import jax_scalify as jsa
 
 # from jax.scipy.special import logsumexp
 
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     params = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
-    @jsa.autoscale
+    @jsa.scalify
     def update(params, batch):
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
@@ -120,7 +120,7 @@ if __name__ == "__main__":
             batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
             batch = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
-            with jsa.AutoScaleConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
+            with jsa.ScalifyConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
                 params = update(params, batch)
 
         epoch_time = time.time() - start_time

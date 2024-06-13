@@ -5,7 +5,7 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax import lax
 
-from jax_scaled_arithmetics.core import autoscale, scaled_array
+from jax_scalify.core import scaled_array, scalify
 
 
 class ScaledScipyHighLevelMethodsTests(chex.TestCase):
@@ -19,7 +19,7 @@ class ScaledScipyHighLevelMethodsTests(chex.TestCase):
             return lax.full_like(a, 0)
 
         a = scaled_array(np.random.rand(3, 5).astype(np.float32), np.float32(1))
-        autoscale(fn)(a)
+        scalify(fn)(a)
         # FIMXE/TODO: what should be the expected result?
 
     @chex.variants(with_jit=False, without_jit=True)
@@ -32,7 +32,7 @@ class ScaledScipyHighLevelMethodsTests(chex.TestCase):
 
         input_scaled = scaled_array(self.rs.rand(10), 4.0, dtype=dtype)
         # JAX `logsumexp` Jaxpr is a non-trivial graph!
-        out_scaled = self.variant(autoscale(logsumexp))(input_scaled)
+        out_scaled = self.variant(scalify(logsumexp))(input_scaled)
         out_expected = logsumexp(np.asarray(input_scaled))
         assert out_scaled.dtype == out_expected.dtype
         # Proper accuracy + keep the same scale.

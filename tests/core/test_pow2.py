@@ -7,8 +7,8 @@ import numpy as np
 import numpy.testing as npt
 from absl.testing import parameterized
 
-from jax_scaled_arithmetics.core import Pow2RoundMode, pow2_decompose, pow2_round_down, pow2_round_up
-from jax_scaled_arithmetics.core.pow2 import _exponent_bits_mask, get_mantissa
+from jax_scalify.core import Pow2RoundMode, pow2_decompose, pow2_round_down, pow2_round_up
+from jax_scalify.core.pow2 import _exponent_bits_mask, get_mantissa
 
 
 class Pow2DecomposePrimitveTests(chex.TestCase):

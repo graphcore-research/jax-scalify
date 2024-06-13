@@ -6,7 +6,7 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax.core import ShapedArray
 
-from jax_scaled_arithmetics.core import (
+from jax_scalify.core import (
     Array,
     ScaledArray,
     as_scaled_array,
