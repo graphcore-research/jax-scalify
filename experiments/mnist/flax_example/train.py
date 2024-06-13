@@ -32,7 +32,7 @@ from flax import linen as nn
 from flax.metrics import tensorboard
 from flax.training import train_state
 
-import jax_scaled_arithmetics as jsa
+import jax_scalify as jsa
 
 
 class CNN(nn.Module):
@@ -75,7 +75,7 @@ def update_model(state, grads):
 
 
 @jax.jit
-@jsa.autoscale
+@jsa.scalify
 def apply_and_update_model(state, batch_images, batch_labels):
     # Jitting together forward + backward + update.
     grads, loss, accuracy = apply_model(state, batch_images, batch_labels)

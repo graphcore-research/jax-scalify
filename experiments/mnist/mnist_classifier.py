@@ -31,7 +31,7 @@ from jax import grad, jit, random
 from jax.example_libraries import optimizers, stax
 from jax.example_libraries.stax import Dense, LogSoftmax, Relu
 
-import jax_scaled_arithmetics as jsa
+import jax_scalify as jsa
 
 
 def loss(params, batch):
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     opt_init, opt_update, get_params = optimizers.momentum(step_size, mass=momentum_mass)
 
     @jit
-    @jsa.autoscale
+    @jsa.scalify
     def update(i, opt_state, batch):
         params = get_params(opt_state)
         return opt_update(i, grad(loss)(params, batch), opt_state)

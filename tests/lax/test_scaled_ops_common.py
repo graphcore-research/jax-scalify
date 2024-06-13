@@ -5,15 +5,8 @@ import numpy.testing as npt
 from absl.testing import parameterized
 from jax import lax
 
-from jax_scaled_arithmetics.core import (
-    Array,
-    ScaledArray,
-    autoscale,
-    debug_callback,
-    find_registered_scaled_op,
-    scaled_array,
-)
-from jax_scaled_arithmetics.lax import (
+from jax_scalify.core import Array, ScaledArray, debug_callback, find_registered_scaled_op, scaled_array, scalify
+from jax_scalify.lax import (
     scaled_broadcast_in_dim,
     scaled_concatenate,
     scaled_convert_element_type,
@@ -49,7 +42,7 @@ class ScaledTranslationPrimitivesTests(chex.TestCase):
             return a
 
         x = scaled_array(self.rs.rand(5), 2, dtype=np.float16)
-        fn = self.variant(autoscale(fn))
+        fn = self.variant(scalify(fn))
         fn(x)
 
         assert len(host_values) == 2
@@ -206,7 +199,7 @@ class ScaledTranslationBooleanPrimitivesTests(chex.TestCase):
         {"scale": 8.0},
     )
     def test__scaled_select__relu_grad_example(self, scale):
-        @autoscale
+        @scalify
         def relu_grad(g):
             return lax.select(g > 0, g, lax.full_like(g, 0))
 

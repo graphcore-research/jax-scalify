@@ -1,7 +1,7 @@
 [project]
-name = "jax_scaled_arithmetics"
+name = "jax_scalify"
 version = "0.1"
-description="JAX Scaled Arithmetics."
+description="JAX Scalify: end-to-end scaled arithmetics."
 readme = "README.md"
 authors = [
   { name = "Graphcore Research", email = "paulb@graphcore.ai" },
@@ -23,15 +23,15 @@ dependencies = [
 ]
 
 [project.urls]
-Website = "https://github.com/graphcore-research/jax-scaled-arithmetics/#readme"
-"Source Code" = "https://github.com/graphcore-research/jax-scaled-arithmetics/"
-"Bug Tracker" = "https://github.com/graphcore-research/jax-scaled-arithmetics/issues"
+Website = "https://github.com/graphcore-research/jax-scalify/#readme"
+"Source Code" = "https://github.com/graphcore-research/jax-scalify/"
+"Bug Tracker" = "https://github.com/graphcore-research/jax-scalify/issues"
 
 [project.optional-dependencies]
 test = ["pytest"]
 
 [tool.setuptools]
-packages = ["jax_scaled_arithmetics", "jax_scaled_arithmetics.core", "jax_scaled_arithmetics.lax", "jax_scaled_arithmetics.ops"]
+packages = ["jax_scalify", "jax_scalify.core", "jax_scalify.lax", "jax_scalify.ops"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

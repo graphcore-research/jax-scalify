@@ -6,15 +6,8 @@ import numpy as np
 from jax import lax
 from jax._src.ad_util import add_any_p
 
-from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import (
-    DTypeLike,
-    ScaledArray,
-    get_autoscale_config,
-    pow2_round,
-    register_scaled_op,
-    safe_div,
-)
+from jax_scalify import core
+from jax_scalify.core import DTypeLike, ScaledArray, get_scalify_config, pow2_round, register_scaled_op, safe_div
 
 from .scaled_ops_common import check_scalar_scales, promote_scale_types
 
@@ -27,7 +20,7 @@ def scaled_add_sub(A: ScaledArray, B: ScaledArray, binary_op: Any) -> ScaledArra
     A, B = promote_scale_types(A, B)
     assert np.issubdtype(A.scale.dtype, np.floating)
     # Pow2 rounding for unit scaling "rule".
-    pow2_rounding_mode = get_autoscale_config().rounding_mode
+    pow2_rounding_mode = get_scalify_config().rounding_mode
     # TODO: what happens to `sqrt` for non-floating scale?
     # More stable than direct L2 norm, to avoid scale overflow.
     ABscale_max = lax.max(A.scale, B.scale)
@@ -75,7 +68,7 @@ def scaled_dot_general(
     assert len(rhs_contracting_dims) == 1
 
     # Pow2 rounding for unit scaling "rule".
-    pow2_rounding_mode = get_autoscale_config().rounding_mode
+    pow2_rounding_mode = get_scalify_config().rounding_mode
     contracting_dim_size = lhs.shape[lhs_contracting_dims[0]]
     # "unit scaling" rule, based on the contracting axis.
     outscale_dtype = jnp.promote_types(lhs.scale.dtype, rhs.scale.dtype)
@@ -111,7 +104,7 @@ def scaled_reduce_sum(val: ScaledArray, axes: Tuple[int]) -> ScaledArray:
     scale_dtype = val.scale.dtype
     axes_size = np.array([shape[idx] for idx in axes])
     # Pow2 rounding for unit scaling "rule".
-    pow2_rounding_mode = get_autoscale_config().rounding_mode
+    pow2_rounding_mode = get_scalify_config().rounding_mode
     # Rescale data component following reduction axes & round to power of 2 value.
     axes_rescale = np.sqrt(np.prod(axes_size)).astype(scale_dtype)
     axes_rescale = pow2_round(axes_rescale, pow2_rounding_mode)

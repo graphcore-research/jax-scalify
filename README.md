@@ -1,6 +1,6 @@
-# JAX Scaled Arithmetics
+# JAX Scalify: end-to-end scaled Arithmetics
 
-**JAX Scaled Arithmetics** is a thin library implementing numerically stable scaled arithmetics, allowing easy training and inference of
+**JAX Scalify** is a thin library implementing numerically stable scaled arithmetics, allowing easy training and inference of
 deep neural networks in low precision (BF16, FP16, FP8).
 
 Loss scaling, tensor scaling and block scaling have been widely used in the deep learning literature to unlock training and inference at lower precision. Usually, these works have focused on ad-hoc approaches around scaling of matmuls (and sometimes reduction operations). The JSA library is adopting a more systematic approach by transforming the full computational graph into a `ScaledArray` graph, i.e. every operation taking `ScaledArray` inputs and returning `ScaledArray`, where the latter is a simple datastructure:
@@ -14,14 +14,14 @@ class ScaledArray:
         return data * scale
 ```
 
-A typical JAX training loop requires just a few modifications to take advantage of `autoscale`:
+A typical JAX training loop requires just a few modifications to take advantage of `scalify`:
 ```python
-import jax_scaled_arithmetics as jsa
+import jax_scalify as jsa
 
 params = jsa.as_scaled_array(params)
 
 @jit
-@jsa.autoscale
+@jsa.scalify
 def update(params, batch):
     grads = grad(loss)(params, batch)
     return opt_update(params, grads)
@@ -30,7 +30,7 @@ for batch in batches:
     batch = jsa.as_scaled_array(batch)
     params = update(params, batch)
 ```
-In other words: model parameters and micro-batch are converted to `ScaledArray` objects, and the decorator `jsa.autoscale` properly transforms the graph into a scaled arithmetics graph (see the [MNIST examples](./experiments/mnist/) for more details).
+In other words: model parameters and micro-batch are converted to `ScaledArray` objects, and the decorator `jsa.scalify` properly transforms the graph into a scaled arithmetics graph (see the [MNIST examples](./experiments/mnist/) for more details).
 
 There are multiple benefits to this systematic approach:
 
@@ -46,7 +46,7 @@ There are multiple benefits to this systematic approach:
 
 JSA library can be easily installed in Python virtual environnment:
 ```bash
-git clone git@github.com:graphcore-research/jax-scaled-arithmetics.git
+git clone git@github.com:graphcore-research/jax-scalify.git
 pip install -e ./
 ```
 The main dependencies are `numpy`, `jax` and `chex` libraries.

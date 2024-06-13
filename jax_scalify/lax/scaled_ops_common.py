@@ -7,8 +7,8 @@ import jax.numpy as jnp
 import numpy as np
 from jax import lax
 
-from jax_scaled_arithmetics import core
-from jax_scaled_arithmetics.core import (
+from jax_scalify import core
+from jax_scalify.core import (
     Array,
     DTypeLike,
     ScaledArray,

@@ -4,7 +4,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from jax_scaled_arithmetics.core import ScaledArray, autoscale, scaled_array
+from jax_scalify.core import ScaledArray, scaled_array, scalify
 
 
 class ScaledJaxNumpyFunctions(chex.TestCase):
@@ -22,7 +22,7 @@ class ScaledJaxNumpyFunctions(chex.TestCase):
 
         # size = 8 * 16
         input_scaled = scaled_array(self.rs.rand(8, 16).astype(np.float32), np.float32(1))
-        output_grad_scaled = self.variant(autoscale(mean_fn))(input_scaled)
+        output_grad_scaled = self.variant(scalify(mean_fn))(input_scaled)
 
         assert isinstance(output_grad_scaled, ScaledArray)
         # Proper scale propagation on the backward pass (rough interval)

@@ -4,8 +4,8 @@ from functools import partial
 import jax
 import numpy as np
 
-from jax_scaled_arithmetics.core import ScaledArray, pow2_round, pow2_round_down
-from jax_scaled_arithmetics.lax import get_data_scale, rebalance
+from jax_scalify.core import ScaledArray, pow2_round, pow2_round_down
+from jax_scalify.lax import get_data_scale, rebalance
 
 
 @partial(jax.custom_vjp, nondiff_argnums=(0,))

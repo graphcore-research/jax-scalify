@@ -1,6 +1,6 @@
 # JAX Scaled Operators coverage
 
-Summary of JAX LAX operators supported in `autoscale` graph transformation.
+Summary of JAX LAX operators supported in `scalify` graph transformation.
 
 ## [JAX LAX operations](https://jax.readthedocs.io/en/latest/jax.lax.html)
 
