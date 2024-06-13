@@ -1,4 +1,4 @@
-# JAX Scalify: end-to-end scaled Arithmetics
+# JAX Scalify: end-to-end scaled arithmetic
 
 **JAX Scalify** is a thin library implementing numerically stable scaled arithmetics, allowing easy training and inference of
 deep neural networks in low precision (BF16, FP16, FP8).
