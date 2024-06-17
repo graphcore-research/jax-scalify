@@ -11,16 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Modified by Graphcore Ltd 2024.
 
-"""A basic MNIST example using Numpy and JAX.
+"""A basic CIFAR10 example using Numpy and JAX.
 
-The primary aim here is simplicity and minimal dependencies.
+CIFAR10 training using MLP network + raw SGD optimizer.
 """
-
-
 import time
 
-import datasets
+import dataset_cifar10
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -28,8 +27,6 @@ import numpy.random as npr
 from jax import grad, jit, lax
 
 import jax_scalify as jsa
-
-# from jax.scipy.special import logsumexp
 
 
 def logsumexp(a, axis=None, keepdims=False):
@@ -48,25 +45,35 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
     return [(scale * rng.randn(m, n), scale * rng.randn(n)) for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])]
 
 
+def print_mean_std(name, v):
+    data, scale = jsa.lax.get_data_scale(v)
+    # Always use np.float32, to avoid floating errors in descaling + stats.
+    v = jsa.asarray(data, dtype=np.float32)
+    m, s = np.mean(v), np.std(v)
+    # print(data)
+    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale:.4f})")
+
+
 def predict(params, inputs):
     activations = inputs
     for w, b in params[:-1]:
         # Matmul + relu
         outputs = jnp.dot(activations, w) + b
-        activations = jax.nn.relu(outputs)
+        activations = jnp.maximum(outputs, 0)
 
     final_w, final_b = params[-1]
     logits = jnp.dot(activations, final_w) + final_b
+
     # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
-    # logits = jsa.ops.dynamic_rescale_l2_grad(logits)
-    logits = logits - logsumexp(logits, axis=1, keepdims=True)
-    return logits
+    logits = jsa.ops.dynamic_rescale_l2_grad(logits)
+    output = logits - logsumexp(logits, axis=1, keepdims=True)
+
+    return output
 
 
 def loss(params, batch):
     inputs, targets = batch
     preds = predict(params, inputs)
-    targets = jsa.lax.rebalance(targets, np.float32(1 / 8))
     return -jnp.mean(jnp.sum(preds * targets, axis=1))
 
 
@@ -78,16 +85,21 @@ def accuracy(params, batch):
 
 
 if __name__ == "__main__":
-    layer_sizes = [784, 1024, 1024, 10]
+    width = 2048
+    lr = 1e-4
+    use_scalify = True
+    scalify = jsa.scalify if use_scalify else lambda f: f
+
+    layer_sizes = [3072, width, width, 10]
     param_scale = 1.0
-    step_size = 0.001
+
+    step_size = lr
     num_epochs = 10
     batch_size = 128
-
     training_dtype = np.float16
     scale_dtype = np.float32
 
-    train_images, train_labels, test_images, test_labels = datasets.mnist()
+    train_images, train_labels, test_images, test_labels = dataset_cifar10.cifar()
     num_train = train_images.shape[0]
     num_complete_batches, leftover = divmod(num_train, batch_size)
     num_batches = num_complete_batches + bool(leftover)
@@ -103,11 +115,12 @@ if __name__ == "__main__":
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray` and proper dtype.
-    params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
+    if use_scalify:
+        params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
     params = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
-    @jsa.scalify
+    @scalify
     def update(params, batch):
         grads = grad(loss)(params, batch)
         return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
@@ -117,7 +130,8 @@ if __name__ == "__main__":
         for _ in range(num_batches):
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
-            batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
+            if use_scalify:
+                batch = jsa.as_scaled_array(batch, scale=scale_dtype(param_scale))
             batch = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
             with jsa.ScalifyConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):

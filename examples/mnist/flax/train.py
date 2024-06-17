@@ -28,8 +28,9 @@ import numpy as np
 import optax
 import tensorflow_datasets as tfds
 from absl import logging
-from flax import linen as nn
-from flax.metrics import tensorboard
+from flax import linen as nn  # type:ignore
+
+# from flax.metrics import tensorboard
 from flax.training import train_state
 
 import jax_scalify as jsa
@@ -143,8 +144,8 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str) -> train
     train_ds, test_ds = get_datasets()
     rng = jax.random.key(0)
 
-    summary_writer = tensorboard.SummaryWriter(workdir)
-    summary_writer.hparams(dict(config))
+    # summary_writer = tensorboard.SummaryWriter(workdir)
+    # summary_writer.hparams(dict(config))
 
     rng, init_rng = jax.random.split(rng)
     init_rng = jax.random.PRNGKey(1)
@@ -173,10 +174,10 @@ def train_and_evaluate(config: ml_collections.ConfigDict, workdir: str) -> train
             )
         )
 
-        summary_writer.scalar("train_loss", train_loss, epoch)
-        summary_writer.scalar("train_accuracy", train_accuracy, epoch)
-        summary_writer.scalar("test_loss", test_loss, epoch)
-        summary_writer.scalar("test_accuracy", test_accuracy, epoch)
+        # summary_writer.scalar("train_loss", train_loss, epoch)
+        # summary_writer.scalar("train_accuracy", train_accuracy, epoch)
+        # summary_writer.scalar("test_loss", test_loss, epoch)
+        # summary_writer.scalar("test_accuracy", test_accuracy, epoch)
 
-    summary_writer.flush()
+    # summary_writer.flush()
     return state
