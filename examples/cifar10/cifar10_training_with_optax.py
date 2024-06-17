@@ -11,34 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# Modified by Graphcore Ltd 2024.
 
-"""A basic MNIST example using Numpy and JAX.
-
-The primary aim here is simplicity and minimal dependencies.
+"""A basic CIFAR10 example using Numpy and JAX.
 """
 
 
 import time
 
-import datasets
+import dataset_cifar10
 import jax
 import jax.numpy as jnp
-import ml_dtypes
 import numpy as np
 import numpy.random as npr
+import optax
 from jax import grad, jit, lax
 
 import jax_scalify as jsa
-
-# from functools import partial
-
-
-def print_mean_std(name, v):
-    data, scale = jsa.lax.get_data_scale(v)
-    # Always use np.float32, to avoid floating errors in descaling + stats.
-    data = jsa.asarray(data, dtype=np.float32)
-    m, s, min, max = np.mean(data), np.std(data), np.min(data), np.max(data)
-    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / MIN({min:.4f}) / MAX({max:.4f}) / SCALE({scale:.4f})")
 
 
 def logsumexp(a, axis=None, keepdims=False):
@@ -57,38 +46,29 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
     return [(scale * rng.randn(m, n), scale * rng.randn(n)) for m, n, in zip(layer_sizes[:-1], layer_sizes[1:])]
 
 
-def predict(params, inputs, use_fp8=True):
-    cast_ml_dtype = jsa.ops.cast_ml_dtype if use_fp8 else lambda x, d: x
-    cast_ml_dtype_grad = jsa.ops.cast_ml_dtype_grad if use_fp8 else lambda x, d: x
+def print_mean_std(name, v):
+    data, scale = jsa.lax.get_data_scale(v)
+    # Always use np.float32, to avoid floating errors in descaling + stats.
+    v = jsa.asarray(data, dtype=np.float32)
+    m, s = np.mean(v), np.std(v)
+    # print(data)
+    print(f"{name}: MEAN({m:.4f}) / STD({s:.4f}) / SCALE({scale:.4f})")
 
+
+def predict(params, inputs):
     activations = inputs
     for w, b in params[:-1]:
-        # Forward FP8 casting.
-        w = cast_ml_dtype(w, ml_dtypes.float8_e4m3fn)
-        activations = cast_ml_dtype(activations, ml_dtypes.float8_e4m3fn)
-        # Matmul
-        outputs = jnp.dot(activations, w)
-        # Backward FP8 casting
-        outputs = cast_ml_dtype_grad(outputs, ml_dtypes.float8_e5m2)
-
-        # Bias + relu
-        outputs = outputs + b
+        # Matmul + relu
+        outputs = jnp.dot(activations, w) + b
         activations = jnp.maximum(outputs, 0)
 
     final_w, final_b = params[-1]
-    # Forward FP8 casting.
-    # final_w = jsa.ops.cast_ml_dtype(final_w, ml_dtypes.float8_e4m3fn)
-    activations = cast_ml_dtype(activations, ml_dtypes.float8_e4m3fn)
-    logits = jnp.dot(activations, final_w)
-    # Backward FP8 casting
-    logits = cast_ml_dtype_grad(logits, ml_dtypes.float8_e5m2)
-
-    logits = logits + final_b
-
+    logits = jnp.dot(activations, final_w) + final_b
     # Dynamic rescaling of the gradient, as logits gradient not properly scaled.
     logits = jsa.ops.dynamic_rescale_l2_grad(logits)
-    logits = logits - logsumexp(logits, axis=1, keepdims=True)
-    return logits
+    output = logits - logsumexp(logits, axis=1, keepdims=True)
+
+    return output
 
 
 def loss(params, batch):
@@ -100,24 +80,28 @@ def loss(params, batch):
 def accuracy(params, batch):
     inputs, targets = batch
     target_class = jnp.argmax(targets, axis=1)
-    predicted_class = jnp.argmax(predict(params, inputs, use_fp8=False), axis=1)
+    predicted_class = jnp.argmax(predict(params, inputs), axis=1)
     return jnp.mean(predicted_class == target_class)
 
 
 if __name__ == "__main__":
-    layer_sizes = [784, 1024, 1024, 10]
+    width = 256
+    lr = 1e-3
+    use_scalify = False
+    training_dtype = np.float32
+    scalify = jsa.scalify if use_scalify else lambda f: f
+
+    layer_sizes = [3072, width, width, 10]
     param_scale = 1.0
-    step_size = 0.001
     num_epochs = 10
     batch_size = 128
-
-    training_dtype = np.float16
     scale_dtype = np.float32
 
-    train_images, train_labels, test_images, test_labels = datasets.mnist()
+    train_images, train_labels, test_images, test_labels = dataset_cifar10.cifar()
     num_train = train_images.shape[0]
     num_complete_batches, leftover = divmod(num_train, batch_size)
     num_batches = num_complete_batches + bool(leftover)
+    # num_batches = 2
 
     def data_stream():
         rng = npr.RandomState(0)
@@ -129,26 +113,35 @@ if __name__ == "__main__":
 
     batches = data_stream()
     params = init_random_params(param_scale, layer_sizes)
+    params = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), params)
     # Transform parameters to `ScaledArray` and proper dtype.
-    params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
+    optimizer = optax.adam(learning_rate=lr, eps=1e-5)
+    opt_state = optimizer.init(params)
+
+    if use_scalify:
+        params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
+
     params = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
 
     @jit
-    @jsa.scalify
-    def update(params, batch):
+    @scalify
+    def update(params, batch, opt_state):
         grads = grad(loss)(params, batch)
-        return [(w - step_size * dw, b - step_size * db) for (w, b), (dw, db) in zip(params, grads)]
+        updates, opt_state = optimizer.update(grads, opt_state)
+        params = optax.apply_updates(params, updates)
+        return params, opt_state
 
     for epoch in range(num_epochs):
         start_time = time.time()
         for _ in range(num_batches):
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
-            batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
+            if use_scalify:
+                batch = jsa.as_scaled_array(batch, scale=scale_dtype(param_scale))
             batch = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
 
             with jsa.ScalifyConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
-                params = update(params, batch)
+                params, opt_state = update(params, batch, opt_state)
 
         epoch_time = time.time() - start_time
 

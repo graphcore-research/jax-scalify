@@ -69,3 +69,4 @@ disallow_incomplete_defs = true
 # # disallow_subclassing_any = true
 # # for strict mypy: (this is the tricky one :-))
 # disallow_untyped_defs = true
+exclude = ['examples']
