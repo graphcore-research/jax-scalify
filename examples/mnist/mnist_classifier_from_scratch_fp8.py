@@ -59,18 +59,18 @@ def init_random_params(scale, layer_sizes, rng=npr.RandomState(0)):
 
 
 def predict(params, inputs, use_fp8=True):
-    cast_ml_dtype = jsa.ops.cast_ml_dtype if use_fp8 else lambda x, d: x
-    cast_ml_dtype_grad = jsa.ops.cast_ml_dtype_grad if use_fp8 else lambda x, d: x
+    reduce_precision_dtype = jsa.ops.reduce_precision_dtype if use_fp8 else lambda x, d: x
+    reduce_precision_dtype_grad = jsa.ops.reduce_precision_dtype_grad if use_fp8 else lambda x, d: x
 
     activations = inputs
     for w, b in params[:-1]:
         # Forward FP8 casting.
-        w = cast_ml_dtype(w, ml_dtypes.float8_e4m3fn)
-        activations = cast_ml_dtype(activations, ml_dtypes.float8_e4m3fn)
+        w = reduce_precision_dtype(w, ml_dtypes.float8_e4m3fn)
+        activations = reduce_precision_dtype(activations, ml_dtypes.float8_e4m3fn)
         # Matmul
         outputs = jnp.dot(activations, w)
         # Backward FP8 casting
-        outputs = cast_ml_dtype_grad(outputs, ml_dtypes.float8_e5m2)
+        outputs = reduce_precision_dtype_grad(outputs, ml_dtypes.float8_e5m2)
 
         # Bias + relu
         outputs = outputs + b
@@ -78,11 +78,11 @@ def predict(params, inputs, use_fp8=True):
 
     final_w, final_b = params[-1]
     # Forward FP8 casting.
-    # final_w = jsa.ops.cast_ml_dtype(final_w, ml_dtypes.float8_e4m3fn)
-    activations = cast_ml_dtype(activations, ml_dtypes.float8_e4m3fn)
+    # final_w = jsa.ops.reduce_precision_dtype(final_w, ml_dtypes.float8_e4m3fn)
+    activations = reduce_precision_dtype(activations, ml_dtypes.float8_e4m3fn)
     logits = jnp.dot(activations, final_w)
     # Backward FP8 casting
-    logits = cast_ml_dtype_grad(logits, ml_dtypes.float8_e5m2)
+    logits = reduce_precision_dtype_grad(logits, ml_dtypes.float8_e5m2)
 
     logits = logits + final_b
 
