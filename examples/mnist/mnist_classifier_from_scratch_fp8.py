@@ -22,7 +22,6 @@ The primary aim here is simplicity and minimal dependencies.
 import time
 
 import datasets
-import jax
 import jax.numpy as jnp
 import ml_dtypes
 import numpy as np
@@ -133,7 +132,7 @@ if __name__ == "__main__":
     params = init_random_params(param_scale, layer_sizes)
     # Transform parameters to `ScaledArray` and proper dtype.
     params = jsa.as_scaled_array(params, scale=scale_dtype(param_scale))
-    params = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), params, is_leaf=jsa.core.is_scaled_leaf)
+    params = jsa.tree.astype(params, training_dtype)
 
     @jit
     @jsa.scalify
@@ -147,7 +146,7 @@ if __name__ == "__main__":
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
             batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
-            batch = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), batch, is_leaf=jsa.core.is_scaled_leaf)
+            batch = jsa.tree.astype(batch, training_dtype)
 
             with jsa.ScalifyConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
                 params = update(params, batch)

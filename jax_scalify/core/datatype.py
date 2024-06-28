@@ -132,10 +132,13 @@ def make_scaled_scalar(val: Array, scale_dtype: Optional[DTypeLike] = None) -> S
 
 
 def is_scaled_leaf(val: Any) -> bool:
-    """Is input a JAX PyTree (scaled) leaf, including ScaledArray.
+    """Is input a normal JAX PyTree leaf (i.e. `Array`) or `ScaledArray1.
 
-    This function is useful for JAX PyTree handling where the user wants
-    to keep the ScaledArray datastructures (i.e. not flattened as a pair of arrays).
+    This function is useful for JAX PyTree handling with `jax.tree` methods where
+    the user wants to keep the ScaledArray data structures (i.e. not flattened as a
+    pair of arrays).
+
+    See `jax_scalify.tree` for PyTree `jax.tree` methods compatible with `ScaledArray`.
     """
     # TODO: check Numpy scalars as well?
     return np.isscalar(val) or isinstance(val, (Array, np.ndarray, ScaledArray))
