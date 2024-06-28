@@ -7,39 +7,7 @@ import numpy as np
 from jax_scalify.core import ScaledArray, pow2_round, pow2_round_down
 from jax_scalify.lax import get_data_scale, rebalance
 
-
-@partial(jax.custom_vjp, nondiff_argnums=(0,))
-def fn_fwd_identity_bwd(f, arg):
-    """Function with identity bwd/grad."""
-    return f(arg)
-
-
-def fn_fwd_identity_bwd_fwd(f, arg):
-    return arg, None
-
-
-def fn_fwd_identity_bwd_bwd(f, _, grad):
-    return (grad,)
-
-
-fn_fwd_identity_bwd.defvjp(fn_fwd_identity_bwd_fwd, fn_fwd_identity_bwd_bwd)
-
-
-@partial(jax.custom_vjp, nondiff_argnums=(0,))
-def fn_bwd_identity_fwd(f, arg):
-    """Apply a function on the gradient/backward pass."""
-    return arg
-
-
-def fn_bwd_identity_fwd_fwd(f, arg):
-    return arg, None
-
-
-def fn_bwd_identity_fwd_bwd(f, _, grad):
-    return (f(grad),)
-
-
-fn_bwd_identity_fwd.defvjp(fn_bwd_identity_fwd_fwd, fn_bwd_identity_fwd_bwd)
+from .utils import map_on_backward, map_on_forward
 
 
 def dynamic_rescale_max_base(arr: ScaledArray) -> ScaledArray:
@@ -97,11 +65,11 @@ def dynamic_rescale_l2_base(arr: ScaledArray) -> ScaledArray:
 
 
 # Dynamic rescale on fwd arrays.
-dynamic_rescale_max = partial(fn_fwd_identity_bwd, dynamic_rescale_max_base)
-dynamic_rescale_l1 = partial(fn_fwd_identity_bwd, dynamic_rescale_l1_base)
-dynamic_rescale_l2 = partial(fn_fwd_identity_bwd, dynamic_rescale_l2_base)
+dynamic_rescale_max = partial(map_on_forward, dynamic_rescale_max_base)
+dynamic_rescale_l1 = partial(map_on_forward, dynamic_rescale_l1_base)
+dynamic_rescale_l2 = partial(map_on_forward, dynamic_rescale_l2_base)
 
 # Dynamic rescale on gradients.
-dynamic_rescale_max_grad = partial(fn_bwd_identity_fwd, dynamic_rescale_max_base)
-dynamic_rescale_l1_grad = partial(fn_bwd_identity_fwd, dynamic_rescale_l1_base)
-dynamic_rescale_l2_grad = partial(fn_bwd_identity_fwd, dynamic_rescale_l2_base)
+dynamic_rescale_max_grad = partial(map_on_backward, dynamic_rescale_max_base)
+dynamic_rescale_l1_grad = partial(map_on_backward, dynamic_rescale_l1_base)
+dynamic_rescale_l2_grad = partial(map_on_backward, dynamic_rescale_l2_base)

@@ -4,16 +4,17 @@ from typing import Any
 # import chex
 import jax
 import jax.numpy as jnp
-import jaxlib
 import numpy as np
 
 # Type aliasing. To be compatible with JAX 0.3 as well.
-if jax.__version_info__[1] > 3:
-    Array = jax.Array
-    ArrayTypes = (jax.Array, jax.stages.ArgInfo)
-else:
-    Array = jaxlib.xla_extension.DeviceArray
-    ArrayTypes = (jaxlib.xla_extension.DeviceArray, jax.interpreters.partial_eval.DynamicJaxprTracer)
+try:
+    from jax import Array
+
+    ArrayTypes = (Array, jax.stages.ArgInfo)
+except ImportError:
+    from jaxlib.xla_extension import DeviceArray as Array
+
+    ArrayTypes = (Array, jax.interpreters.partial_eval.DynamicJaxprTracer)
 
 
 def get_numpy_api(val: Any) -> Any:
