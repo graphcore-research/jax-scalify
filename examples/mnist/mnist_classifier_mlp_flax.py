@@ -79,8 +79,8 @@ if __name__ == "__main__":
     key = jax.random.PRNGKey(42)
     use_scalify: bool = True
 
-    # training_dtype = np.dtype(np.float16)
     training_dtype = np.dtype(np.float16)
+    optimizer_dtype = np.dtype(np.float16)
     scale_dtype = np.float32
 
     train_images, train_labels, test_images, test_labels = datasets.mnist()
@@ -102,27 +102,24 @@ if __name__ == "__main__":
     model_state = model.init(key, np.zeros((batch_size, mnist_img_size), dtype=training_dtype))
     # Optimizer & optimizer state.
     # opt = optax.sgd(learning_rate=step_size)
-    opt = optax.adam(learning_rate=step_size, eps=1e-5)
+    opt = optax.adam(learning_rate=step_size, eps=2**-16)
     opt_state = opt.init(model_state)
     # Freeze model, optimizer (with step size).
     update_fn = partial(update, model, opt)
 
     if use_scalify:
-        # Transform parameters to `ScaledArray` and proper dtype.
+        # Transform parameters to `ScaledArray`.
         model_state = jsa.as_scaled_array(model_state, scale=scale_dtype(1.0))
         opt_state = jsa.as_scaled_array(opt_state, scale=scale_dtype(0.0001))
-
-        model_state = jax.tree_util.tree_map(
-            lambda v: v.astype(training_dtype), model_state, is_leaf=jsa.core.is_scaled_leaf
-        )
         # Scalify the update function as well.
         update_fn = jsa.scalify(update_fn)
-    else:
-        model_state = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), model_state)
+    # Convert the model state (weights) & optimizer state to proper dtype.
+    model_state = jsa.tree.astype(model_state, training_dtype)
+    opt_state = jsa.tree.astype(opt_state, optimizer_dtype, floating_only=True)
 
     print(f"Using Scalify: {use_scalify}")
     print(f"Training data format: {training_dtype.name}")
-    # print(f"Optimizer data format: {training_dtype.name}")
+    print(f"Optimizer data format: {optimizer_dtype.name}")
     print("")
 
     update_fn = jax.jit(update_fn)
@@ -134,7 +131,7 @@ if __name__ == "__main__":
         for _ in range(num_batches):
             batch = next(batches)
             # Scaled micro-batch + training dtype cast.
-            batch = jax.tree_util.tree_map(lambda v: v.astype(training_dtype), batch)
+            batch = jsa.tree.astype(batch, training_dtype)
             if use_scalify:
                 batch = jsa.as_scaled_array(batch, scale=scale_dtype(1))
             with jsa.ScalifyConfig(rounding_mode=jsa.Pow2RoundMode.DOWN, scale_dtype=scale_dtype):
