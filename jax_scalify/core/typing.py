@@ -1,5 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from typing import Any
+from typing import Any, Tuple
 
 # import chex
 import jax
@@ -10,11 +10,20 @@ import numpy as np
 try:
     from jax import Array
 
-    ArrayTypes = (Array, jax.stages.ArgInfo)
+    ArrayTypes: Tuple[Any, ...] = (Array,)
 except ImportError:
     from jaxlib.xla_extension import DeviceArray as Array
 
+    # Older version of JAX <0.4
     ArrayTypes = (Array, jax.interpreters.partial_eval.DynamicJaxprTracer)
+
+try:
+    from jax.stages import ArgInfo
+
+    # Additional ArgInfo in recent JAX versions.
+    ArrayTypes = (*ArrayTypes, ArgInfo)
+except ImportError:
+    pass
 
 
 def get_numpy_api(val: Any) -> Any:
