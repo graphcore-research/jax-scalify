@@ -204,7 +204,7 @@ def as_scaled_array_base(
             return ScaledArray(val / scale.astype(val.dtype), scale)  # type:ignore
 
     # TODO: fix bug when scale is not 1.
-    raise NotImplementedError(f"Constructing `ScaledArray` from {val} and {scale} not supported.")
+    raise NotImplementedError(f"Constructing `ScaledArray` from {val} and {scale} not supported.")  # type:ignore
     # return scaled_array_base(val, scale)
 
 
