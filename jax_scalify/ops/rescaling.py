@@ -73,3 +73,8 @@ dynamic_rescale_l2 = partial(map_on_forward, dynamic_rescale_l2_base)
 dynamic_rescale_max_grad = partial(map_on_backward, dynamic_rescale_max_base)
 dynamic_rescale_l1_grad = partial(map_on_backward, dynamic_rescale_l1_base)
 dynamic_rescale_l2_grad = partial(map_on_backward, dynamic_rescale_l2_base)
+
+
+# Backward compatibility. DEPRECATED, WILL BE REMOVED!
+fn_fwd_identity_bwd = map_on_forward
+fn_bwd_identity_fwd = map_on_backward
