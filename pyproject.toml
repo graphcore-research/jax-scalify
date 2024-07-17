@@ -1,13 +1,22 @@
+# Configuration inspired by official pypa example:
+# https://github.com/pypa/sampleproject/blob/main/pyproject.toml
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "jax_scalify"
 version = "0.1"
-description="JAX Scalify: end-to-end scaled arithmetics."
+description="JAX Scalify: end-to-end scaled arithmetic."
 readme = "README.md"
+license = {file = "LICENSE"}
 authors = [
-  { name = "Graphcore Research", email = "paulb@graphcore.ai" },
+  { name = "Paul Balanca", email = "paulb@graphcore.ai" },
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
+  "Development Status :: 4 - Beta",
   "License :: Apache 2.0",
   "Programming Language :: Python :: 3.8",
   "Programming Language :: Python :: 3.9",
@@ -23,11 +32,12 @@ dependencies = [
 ]
 
 [project.urls]
-Website = "https://github.com/graphcore-research/jax-scalify/#readme"
-"Source Code" = "https://github.com/graphcore-research/jax-scalify/"
-"Bug Tracker" = "https://github.com/graphcore-research/jax-scalify/issues"
+"Homepage" = "https://github.com/graphcore-research/jax-scalify/#readme"
+"Bug Reports" = "https://github.com/graphcore-research/jax-scalify/issues"
+"Source" = "https://github.com/graphcore-research/jax-scalify/"
 
 [project.optional-dependencies]
+dev = ["check-manifest"]
 test = ["pytest"]
 
 # Relying on the default setuptools.
