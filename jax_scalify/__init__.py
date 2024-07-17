@@ -1,6 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
 from . import core, lax, ops, tree
-from ._version import __version__
 from .core import (  # noqa: F401
     Pow2RoundMode,
     ScaledArray,
@@ -11,3 +10,4 @@ from .core import (  # noqa: F401
     scaled_array,
     scalify,
 )
+from .version import __version__

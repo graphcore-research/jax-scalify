@@ -7,7 +7,6 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jax_scalify"
-version = "0.1"
 description="JAX Scalify: end-to-end scaled arithmetic."
 readme = "README.md"
 authors = [
@@ -30,6 +29,7 @@ dependencies = [
   "ml_dtypes",
   "numpy >= 1.22.4"
 ]
+dynamic = ["version"]
 
 [project.urls]
 "Homepage" = "https://github.com/graphcore-research/jax-scalify/#readme"
@@ -43,9 +43,15 @@ test = ["pytest"]
 # Relying on the default setuptools.
 # In case of an issue, can use the following options
 # [tool.setuptools]
-# packages = ["jax_scalify", "jax_scalify.core", "jax_scalify.lax", "jax_scalify.ops"]
+# packages = ["jax_scalify", "jax_scalify.core", "jax_scalify.lax", "jax_scalify.ops", "jax_scalify.tree"]
 # [tool.setuptools.packages]
 # find = {namespaces = false}
+
+[tool.setuptools.dynamic]
+version = {attr = "jax_scalify.version.__version__"}
+
+[tool.setuptools_scm]
+version_file = "jax_scalify/version.py"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
