@@ -30,8 +30,12 @@ Website = "https://github.com/graphcore-research/jax-scalify/#readme"
 [project.optional-dependencies]
 test = ["pytest"]
 
-[tool.setuptools]
-packages = ["jax_scalify", "jax_scalify.core", "jax_scalify.lax", "jax_scalify.ops"]
+# Relying on the default setuptools.
+# In case of an issue, can use the following options
+# [tool.setuptools]
+# packages = ["jax_scalify", "jax_scalify.core", "jax_scalify.lax", "jax_scalify.ops"]
+# [tool.setuptools.packages]
+# find = {namespaces = false}
 
 [tool.pytest.ini_options]
 minversion = "6.0"
