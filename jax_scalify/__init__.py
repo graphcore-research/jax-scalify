@@ -1,5 +1,5 @@
 # Copyright (c) 2023 Graphcore Ltd. All rights reserved.
-from . import core, lax, ops, tree
+from . import core, lax, ops, tree, utils
 from .core import (  # noqa: F401
     Pow2RoundMode,
     ScaledArray,
