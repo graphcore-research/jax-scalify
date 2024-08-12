@@ -4,6 +4,7 @@ from enum import IntEnum
 from functools import partial
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
+import jax.numpy as jnp
 import numpy as np
 from jax import core
 from jax.interpreters import mlir
@@ -14,6 +15,9 @@ from .typing import Array, get_numpy_api
 
 # Exponent bits masking.
 _exponent_bits_mask: Dict[Any, NDArray[Any]] = {
+    np.dtype(jnp.bfloat16): np.packbits(
+        np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], dtype=np.uint8)
+    ).view(np.int16),
     np.dtype(np.float16): np.packbits(np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0], dtype=np.uint8)).view(
         np.int16
     ),
@@ -31,6 +35,24 @@ NOTE: normally should also correspond to `np.inf` value for FP16 and FP32.
 """
 
 
+def dtype_exponent_mask(dtype: DTypeLike, sign_bit: bool = False) -> NDArray[Any]:
+    """Get the exponent mask for a given Numpy/JAX dtype.
+
+    Args:
+        dtype: Numpy/JAX dtype.
+        sign_bit: Include sign bit in the mask.
+    Returns:
+        Array mask as integer dtype.
+    """
+    mask = _exponent_bits_mask[dtype]
+    if sign_bit:
+        # Negative value to add sign.
+        intdtype = mask.dtype
+        mask = (-mask.view(dtype)).view(intdtype)
+        return mask
+    return mask
+
+
 def pow2_decompose_round_down_impl(vin: Array, scale_dtype: DTypeLike) -> Array:
     """Pow-2 decompose with rounding down.
 
@@ -42,7 +64,7 @@ def pow2_decompose_round_down_impl(vin: Array, scale_dtype: DTypeLike) -> Array:
     # NOTE: `jnp.frexp` is buggy for subnormals.
     dtype = np.dtype(np.float32)
     minval = np.finfo(dtype).smallest_normal
-    exponent_mask = _exponent_bits_mask[dtype]
+    exponent_mask = dtype_exponent_mask(dtype)
     intdtype = exponent_mask.dtype
     val = vin.astype(dtype)
     # Masking mantissa bits, keeping only the exponents ones.
