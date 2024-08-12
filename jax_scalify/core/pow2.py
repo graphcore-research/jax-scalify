@@ -5,6 +5,7 @@ from functools import partial
 from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 import jax.numpy as jnp
+import ml_dtypes
 import numpy as np
 from jax import core
 from jax.interpreters import mlir
@@ -16,6 +17,10 @@ from .typing import Array, get_numpy_api
 # Exponent bits masking.
 _exponent_bits_mask: Dict[Any, NDArray[Any]] = {
     np.dtype(jnp.bfloat16): np.packbits(
+        np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], dtype=np.uint8)
+    ).view(np.int16),
+    # Copy for ml_dtypes.bfloat16, distinct in older JAX versions.
+    np.dtype(ml_dtypes.bfloat16): np.packbits(
         np.array([1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1], dtype=np.uint8)
     ).view(np.int16),
     np.dtype(np.float16): np.packbits(np.array([0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0], dtype=np.uint8)).view(

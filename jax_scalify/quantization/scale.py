@@ -1,5 +1,6 @@
 # Copyright (c) 2024 Graphcore Ltd. All rights reserved.
 import jax.numpy as jnp
+import ml_dtypes
 import numpy as np
 
 from jax_scalify.core import Array, DTypeLike, get_numpy_api
@@ -33,7 +34,7 @@ def as_e8m0(arr: Array) -> Array:
     """
     np_api = get_numpy_api(arr)
     # assert len(arr.shape) < 2
-    assert arr.dtype in {np.dtype(jnp.bfloat16), np.dtype(jnp.float32)}
+    assert arr.dtype in {np.dtype(jnp.bfloat16), np.dtype(ml_dtypes.bfloat16), np.dtype(jnp.float32)}
     # Saturation => negative values saturating to min value (i.e. zero bits) in E8M0.
     arr = np_api.maximum(arr, np.array(0, arr.dtype))
     arr = pow2_truncate(arr)
@@ -55,7 +56,7 @@ def from_e8m0(arr: Array, dtype: DTypeLike) -> Array:
     """
     np_api = get_numpy_api(arr)
     assert arr.dtype == np.uint8
-    assert np.dtype(dtype) in {np.dtype(jnp.bfloat16), np.dtype(jnp.float32)}
+    assert np.dtype(dtype) in {np.dtype(jnp.bfloat16), np.dtype(ml_dtypes.bfloat16), np.dtype(jnp.float32)}
     # Avoid issues with 7 mantissa bits in BF16.
     # TODO: more efficient implementation!
     arr = np_api.exp2(arr.astype(np.float32) - 127)
