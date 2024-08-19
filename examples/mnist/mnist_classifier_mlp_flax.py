@@ -21,6 +21,16 @@ import jax_scalify as jsa
 # from jax.scipy.special import logsumexp
 
 
+def data_interceptor(next_fun, args, kwargs, context):
+    from jax_scalify.ops import debug_callback, debug_callback_grad
+
+    assert len(args) == 1
+    path = "/".join(context.module.path)
+    debug_callback(lambda v: print(f"Tensor fwd '{path}': {v.aval}"), args[0])
+    args = debug_callback_grad(lambda v: print(f"Tensor bwd '{path}': {v.aval}"), args[0])
+    return next_fun(*args, **kwargs)
+
+
 def logsumexp(a, axis=None, keepdims=False):
     from jax import lax
 
@@ -65,7 +75,10 @@ def accuracy(model, params, batch):
 
 
 def update(model, optimizer, model_state, opt_state, batch):
-    grads = jax.grad(partial(loss, model))(model_state, batch)
+    # model.name = "model"
+    # print(model.name)
+    with nn.intercept_methods(data_interceptor):
+        grads = jax.grad(partial(loss, model))(model_state, batch)
     # Optimizer update (state & gradients).
     updates, opt_state = optimizer.update(grads, opt_state, model_state)
     model_state = optax.apply_updates(model_state, updates)
@@ -77,10 +90,10 @@ if __name__ == "__main__":
     num_epochs = 10
     batch_size = 128
     key = jax.random.PRNGKey(42)
-    use_scalify: bool = True
+    use_scalify: bool = False
 
-    training_dtype = np.dtype(np.float16)
-    optimizer_dtype = np.dtype(np.float16)
+    training_dtype = np.dtype(np.float32)
+    optimizer_dtype = np.dtype(np.float32)
     scale_dtype = np.float32
 
     train_images, train_labels, test_images, test_labels = datasets.mnist()
