@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
   "chex>=0.1.6",
-  "jax>=0.3.16,<0.4.31",
+  "jax>=0.3.16",
   "jaxlib>=0.3.15",
   "ml_dtypes",
   "numpy>=1.22.4"

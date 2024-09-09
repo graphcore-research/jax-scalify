@@ -13,6 +13,7 @@ from jax_scalify.core import (
     DTypeLike,
     ScaledArray,
     Shape,
+    Sharding,
     as_scaled_array,
     get_scale_dtype,
     is_static_anyscale,
@@ -76,7 +77,9 @@ def scaled_broadcast_in_dim(A: ScaledArray, shape: Shape, broadcast_dimensions: 
 
 
 @core.register_scaled_lax_op
-def scaled_convert_element_type(A: ScaledArray, new_dtype: DTypeLike, weak_type: bool = False) -> ScaledArray:
+def scaled_convert_element_type(
+    A: ScaledArray, new_dtype: DTypeLike, weak_type: bool = False, sharding: Sharding | None = None
+) -> ScaledArray:
     # NOTE: by default, no rescaling done before casting.
     # Choice of adding an optional rescaling op before is up to the user (and which strategy to use).
     # NOTE bis: scale not casted as well by default!

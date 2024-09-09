@@ -9,11 +9,13 @@ import numpy as np
 # Type aliasing. To be compatible with JAX 0.3 as well.
 try:
     from jax import Array
+    from jax.sharding import Sharding
 
     ArrayTypes: Tuple[Any, ...] = (Array,)
 except ImportError:
     from jaxlib.xla_extension import DeviceArray as Array
 
+    Sharding = Any
     # Older version of JAX <0.4
     ArrayTypes = (Array, jax.interpreters.partial_eval.DynamicJaxprTracer)
 
