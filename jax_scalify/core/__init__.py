@@ -24,5 +24,5 @@ from .interpreters import (  # noqa: F401
     scalify,
 )
 from .pow2 import Pow2RoundMode, pow2_decompose, pow2_round, pow2_round_down, pow2_round_up  # noqa: F401
-from .typing import Array, ArrayTypes, get_numpy_api  # noqa: F401
+from .typing import Array, ArrayTypes, Sharding, get_numpy_api  # noqa: F401
 from .utils import safe_div, safe_reciprocal  # noqa: F401
